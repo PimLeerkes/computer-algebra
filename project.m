@@ -79,24 +79,49 @@ function LaurentSeriesAroundPoint(f, z0, p)
     end for;
 
     //we return the laurent expansion together with the point, which can later be used to pretty print the series
-    return <laurent_expansion,z0>;
+    return <laurent_expansion, z0>;
 end function;
 
 //the main function of this project. prints all the relevent information about the laurent/taylorexpansion of a given rational function
-function LaurentAnalysis(f,z0, p)
+LaurentAnalysis := procedure(f, z0, p);
+    print("performing laurent analysis on (rational) function");
+
     //determine singularities
+    C := ComplexField(4);
+    den := Denominator(f); //TODO not all are of the right form
+    singularities := Roots(den,C);
+
+    print("singularities: ");
+    punctured := false;
+    for s in singularities do
+        printf "pole of order: %o at: %o\n", s[2], s[1];
+        if s[1] eq z0 then
+            punctured := true;
+        end if;
+    end for;
 
     //determine domains
+    //domains := [];
+    //if punctured eq true then
+    //    domains := domains cat [<z0,z0>];
+    //end if;
+
+    laurent_series := LaurentSeriesAroundPoint(f,z0,p)[1];
+    print(Type(laurent_series));
+    point := LaurentSeriesAroundPoint(f,z0,p)[2];
+
+    S<z> := PolynomialRing(Rationals());
+    terms := [ Coefficient(laurent_series, i)*((z - point)^i) : i in Exponents(laurent_series) ];
+    g := &+ terms;
+    print(g);
+
 
     //calculate series around the domains
 
     //calculate residue
 
     //print everything
-
-    //return the important information?
-    return f;
-end function;
+end procedure;
 
 //TODO elementary trancendental functions/inverses of them (automatic if we don't implement ourselves)
 //TODO multivariate
@@ -109,14 +134,10 @@ function SeriesEqual(f,z0,p)
 
     //we first compute the magma laurent series around the point (how to do this in a nice way?)
     K<t> := Parent(f);
-    //print(K);
     f_sub := Evaluate(f, t + z0);
     Q := Rationals();
     L := LaurentSeriesRing(Q,p);
     magma_series := L ! f_sub;
-
-    //K<z> := Parent(magma_series);
-    //magma_series := Evaluate(magma_series, z - z0);
 
     //then we cast our laurent series to a magma laurent series to compare them
     my_series := LaurentSeriesAroundPoint(f, z0, p)[0];
@@ -132,13 +153,13 @@ function SeriesEqual(f,z0,p)
     end if;
 end function;
 
+/////////////////////////////////////// Testing ////////////////////////////////////////////////
+
 AutomaticTestLaurentSeriesAroundPoint := procedure()
-    //for automatic unit testing
-    //we test our implementations with rational functions constructed here
+    //to test the laurent series around point function automatically for a list of rational functions
     Q := Rationals();
     K<z> := RationalFunctionField(Q);
 
-    //TODO how to test around a point?
     //TODO z0 must be complex
 
     //tests around 0
@@ -153,6 +174,10 @@ AutomaticTestLaurentSeriesAroundPoint := procedure()
     assert SeriesEqual(1/z, 1, 20);
     assert SeriesEqual(1/(z^2+2*z), 1, 20);
     assert SeriesEqual((z - 3)/(z^2 + 1), 1/2, 20); 
+
+    //TODO test around i
+
+    //multivariate TODO
 end procedure;
 
 
@@ -160,6 +185,8 @@ ManualTestLaurentSeriesAroundPoint := procedure()
     //to test the whole laurent analysis manually
     Q := Rationals();
     K<z> := RationalFunctionField(Q);
-    p := 1/(1-z);
-    LaurentAnalysis(p,20);
+    f := 1/(1-z);
+    prec := 20;
+    z0 := 0;
+    LaurentAnalysis(f,z0,prec);
 end procedure;
