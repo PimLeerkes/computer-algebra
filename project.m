@@ -1,55 +1,57 @@
-function MyPartialFractionDecomposition(f)
-    //first we take the regular partial fraction decomposition using the magma built in function
-    decomposition := PartialFractionDecomposition(f); //TODO make own version of this
+function MyPartialFractionDecomposition(f,p)
 
-    //not all denominators are linear yet, so we need to make the necessary field extentions
+    C := ComplexField(p);
+
+    //First we need to determine the factorization of the denominator in order to know which field extensions are needed
+    den_f := Factorisation(Denominator(f));
+
+    //We check the field extentions
     extentions := [];
-    for rational_function in decomposition do
-        denominator := rational_function[1];
-        if Degree(denominator) gt 1 then
-            Append(~extentions,denominator);
+    for factor in den_f do
+        print(Type(factor[1]));
+        if Degree(factor[1]) gt 1 then
+            root := 
+            Append(~extentions,<factor[1],);
         end if;
     end for;
 
-    //if there are extentions
+    //we make the new function field
     if #extentions eq 0 then
         Q_ext := BaseRing(Parent(f));
     else
         Q_ext := NumberField(extentions);
     end if;
-
     K<z> := RationalFunctionField(Q_ext);
 
     //now we compute a partial fraction decomposition again over the extended field
     new_f := K ! f;
-    full_decomposition := PartialFractionDecomposition(new_f);
+    full_decomposition := PartialFractionDecomposition(new_f); //TODO make own version of this
 
-    return full_decomposition;
+    //TODO we should return approximate roots as well
+    C := ComplexField(p);
+    seq := [];
+    for factor in full_decomposition do
+        root := Roots(factor[1])[1][1];
+        print(Type(root));
+        Append(~seq, <factor,root>);
+    end for;
+
+    return seq;
 end function;
 
-function MyGeometricSeries(f, z0, domain, p)
+function MyGeometricSeries(f,z0,root,domain, p)
     //we need the following values
     numerator := f[3];
     denominator := f[1];
     n := f[2]; //the multiplicity of the denominator
     b := Coefficient(denominator,0);
     a := Coefficient(denominator,1);
-    C := Parent(denominator);
 
-    root  := -b / a;
-    root := C!root;
     print(root);
-    z0 := C!z0;
-    r2 := C!domain[2];
-    r1 := C!domain[1];
-
-    //print(domain);
-    //print(z0);
-    //print(root);
-    //print(r2);
+    print(domain[2]);
 
     geom := [];
-    if Abs(root - z0) le Abs(r2 - z0) and domain[2] ne C!1e20 then //inside a radius
+    if Abs(root-z0) eq Abs(domain[2]-z0) then //inside a radius
         if b ne 0 then
             c := -a / b;
 
@@ -60,8 +62,7 @@ function MyGeometricSeries(f, z0, domain, p)
             //if b is 0 we are in the trivial case
             geom := [<numerator/a,-n>];
         end if;
-    elif Abs(root - z0) ge Abs(r1 - z0) then //outside a radius
-        print(b);
+    elif root eq domain[1] then //outside a radius
         if b ne 0 then
             c := -b / a;
 
@@ -73,8 +74,39 @@ function MyGeometricSeries(f, z0, domain, p)
             geom := [<numerator/a,-n>];
         end if;
     end if;
-
     return geom;
+end function;
+
+function DomainsAndSingularities(f,z0,p)
+    //helper function to determine the different annulus domains and singularities of a given function
+    //determine singularities
+    den := Denominator(f);
+    C := ComplexField(p);
+    singularities := Roots(den, C);
+
+    //remove duplicates
+    sing_no_dup := [];
+    for s in singularities do
+        duplicate := false;
+        for sd in sing_no_dup do
+            if Abs(s[1] - z0) eq Abs(sd[1] - z0) then
+                duplicate := true;
+            end if;
+        end for;
+        if duplicate eq false then
+            Append(~sing_no_dup, s);
+        end if;
+    end for;
+
+    //make the domainmap
+    sorted_singularities := Sort(sing_no_dup, func<a, b | Abs(a[1] - z0) - Abs(b[1] - z0)>);
+    bounds := [z0] cat [s[1] : s in sorted_singularities] cat [C!1e20];
+    DomainMap := AssociativeArray(Integers());
+    for i in [0..#bounds-2] do
+        DomainMap[i] := <bounds[i+1], bounds[i+2]>; 
+    end for;
+
+    return <DomainMap,singularities>;
 end function;
 
 function LaurentSeriesAroundPoint(f, z0, domain, p)
@@ -102,14 +134,17 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
     end if;
     
     //we first need to calculate the partial fraction decomposition (where all denominators are linear (to a power))
-    decomposition := MyPartialFractionDecomposition(f_sub);
+    decomposition := MyPartialFractionDecomposition(f_sub,p);
 
     //for each part in the decomposition we determine the geometric series and add them together
     laurent_expansion := [];
     for rational_function in decomposition do
         //we must first convert the function to a geometric series
-        geom := MyGeometricSeries(rational_function, z0, domain, p);
-        //print(geom);
+        
+        root := rational_function[2];
+        f := rational_function[1];
+
+        geom := MyGeometricSeries(f,z0, root, domain, p);
 
         //we add the geometric series to our current series
         for g_term in geom do
@@ -127,8 +162,8 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
         end for;   
     end for;
 
-    //we return the laurent expansion together with the point, which can later be used to pretty print the series substituted with the (z-point)
-    return <laurent_expansion, z0>;
+    //we return the laurent expansion, which can later be used to pretty print the series substituted with the (z-point)
+    return laurent_expansion;
 end function;
 
 function PrettyLaurentSeries(laurent_series, point, p) //TODO don't print brackets if z = 0
@@ -156,30 +191,9 @@ end function;
 LaurentAnalysis := procedure(f, z0, p);
     printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(f), z0;
 
-    //determine singularities
-    den := Denominator(f); //TODO not all are of the right form (or are they?)
-    den_f := Factorization(den);
-
-    //we must construct our field of algebraic numbers (refactor this because it also happens elsewhere)
-    extentions := [];
-    for factor in den_f do
-        f := factor[1];
-        if Degree(f) gt 1 then
-            Append(~extentions,f);
-        end if;
-    end for;
-
-    //if there are extentions
-    if #extentions eq 0 then
-        Q_ext := BaseRing(Parent(f));
-    else
-        Q_ext := NumberField(extentions);
-    end if;
-
-    singularities := Roots(den, Q_ext); //TODO own root finder function
-    print(singularities);
-
-    //TODO find singularities only after pfd and also make sure you only do this decomposition once.
+    tup := DomainsAndSingularities(f,z0,p);
+    domains := tup[1];
+    singularities := tup[2];
 
     print("\nsingularities: ");
     punctured := false;
@@ -190,28 +204,12 @@ LaurentAnalysis := procedure(f, z0, p);
         end if;
     end for;
 
-    //determine the different domains
-    sorted_sing := Sort(singularities, func<a,b | Abs(a[1] - z0) - Abs(b[1] - z0)>);
-    domains := [z0] cat [s[1] : s in sorted_sing];
-    //TODO get rid of duplicate radiuses
-
-    Append(~domains,Q_ext!1e20); //TODO infinity might also be a bit too non-algebraic
-
-    domains := [ <domains[i], domains[i+1], false, false> : i in [1..#domains by 2] ];
-    if not punctured then
-        domains[1] := <domains[1][1], domains[1][2], true, false>;
-    end if;
-
     //now we determine the laurent series for each domain
-    for d in domains do
-        tup := LaurentSeriesAroundPoint(f,z0,d,p);
-        laurent_series := tup[1];
-        point := tup[2];
+    for d in Keys(domains) do
+        laurent_series := LaurentSeriesAroundPoint(f,z0,domains[d],p);
 
         printf "\nThe laurent/taylor series around %o on domain %o is: ", z0, d; //TODO tell user if it is taylor or laurent
-        print(PrettyLaurentSeries(laurent_series,point,p));
-
-        printf "\nThe convergence radius is: %o",Abs(z0-d[2]); //TODO minimum of abses?
+        print(PrettyLaurentSeries(laurent_series,z0,p));
 
         for term in laurent_series do
             if term[2] eq -1 then
@@ -220,9 +218,6 @@ LaurentAnalysis := procedure(f, z0, p);
         end for;
     end for;
 end procedure;
-
-//TODO elementary trancendental functions/inverses of them (automatic if we don't implement ourselves)
-//TODO multivariate
 
 function SeriesEqual(f,z0,domain,p) 
     //helper function to automatically test equality of our own implementation and magmas implementation
@@ -233,15 +228,12 @@ function SeriesEqual(f,z0,domain,p)
     Q := Rationals();
     L := LaurentSeriesRing(Q,p);
     magma_series := L ! f_sub;
-
+    magma_series_list := [<Coefficient(magma_series, i),i> : i in [-p/2..p/2]];
 
     //we then compute our own series
     my_series := LaurentSeriesAroundPoint(f, z0, domain, p)[1];
 
     //we compare the coefficients
-    magma_series_list := [<Coefficient(magma_series, i),i> : i in [-p/2..p/2]];
-
-    //look for the element with coefficient i
     for term in my_series do
         term_equal := false;
         for magma_term in magma_series_list do
@@ -271,23 +263,21 @@ TestLaurentSeriesAroundPoint := procedure()
     K<z> := RationalFunctionField(Q);
 
     //tests around 0
-    assert SeriesEqual(1/(1-z), 0, <0,1,true,false>, 20);
-    assert SeriesEqual(1/(1-z)^2, 0, <0,1,true,false>, 20);
-    assert SeriesEqual(1/z, 0, <0,1,true,false>,20);
-    assert SeriesEqual((z - 3)/(z^2 + 1),0,<0,1,true,false>, 20); 
-    assert SeriesEqual(1/z^3, 0, <0,1,true,false>, 20); 
-    assert SeriesEqual(1/(z^2+2*z), 0,<0,1,true,false>, 20);
-    assert SeriesEqual(z^3 + 2*z^2 + z + 4, 0,<0,1,true,false>, 20);
+    assert SeriesEqual(1/(1-z), 0, 0, 20);
+    assert SeriesEqual(1/(1-z)^2, 0, 0, 20);
+    assert SeriesEqual(1/z, 0, 0,20);
+    assert SeriesEqual((z - 3)/(z^2 + 1),0, 0, 20); 
+    assert SeriesEqual(1/z^3, 0, 0, 20); 
+    assert SeriesEqual(1/(z^2+2*z), 0, 0, 20);
+    assert SeriesEqual(z^3 + 2*z^2 + z + 4, 0, 0, 20);
 
     //tests around a different point than 0
-    assert SeriesEqual(z, 1, <0,1,true,false>, 20);
-    assert SeriesEqual(1/z, 1, <0,1,true,false>, 20);
-    assert SeriesEqual(1/(z^2+2*z), 1, <0,1,true,false>, 20);
-    assert SeriesEqual((z - 3)/(z^2 + 1), 1/2, <0,1,true,false>, 20); 
+    assert SeriesEqual(z, 1, 0, 20);
+    assert SeriesEqual(1/z, 1, 0, 20);
+    assert SeriesEqual(1/(z^2+2*z), 1, 0, 20);
+    assert SeriesEqual((z - 3)/(z^2 + 1), 1/2, 0, 20); 
 
     //TODO test around the complex number i
-
-    //multivariate TODO
 end procedure;
 
 
@@ -297,6 +287,7 @@ TestLaurentAnalysis := procedure()
     K<z> := RationalFunctionField(Q);
     //f := 1/(1-z);
     f := (z - 3)/(z^2 + 1);
+    //f := z + 1/z;
     //f := 1/(z^2+2*z);
     prec := 20;
     z0 := 0;
