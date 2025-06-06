@@ -17,8 +17,9 @@ function MyPartialFractionDecomposition(f,p)
     if #extentions eq 0 then
         Q_ext := BaseRing(Parent(f));
     else
-        Q_ext := NumberField(extentions);
+        Q_ext, roots := SplittingField(extentions : Abs := true, Opt := true);
     end if;
+
     K<z> := RationalFunctionField(Q_ext);
 
     //now we compute a partial fraction decomposition again over the extended field
@@ -28,32 +29,29 @@ function MyPartialFractionDecomposition(f,p)
     //TODO we should return approximate roots as well
     seq := [];
     for factor in full_decomposition do
-        root := Roots(factor[1])[1][1];
-        Append(~seq, <factor,root>);
+        Append(~seq, factor);
     end for;
 
     return seq;
 end function;
 
-function MyBinomialExpansion(f,z0,root,domain, p)
+function MyBinomialExpansion(f, z0, domain, p)
     //we need the following values
     numerator := f[3];
     denominator := f[1];
     n := f[2]; //the multiplicity of the denominator
     b := Coefficient(denominator,0);
     a := Coefficient(denominator,1);
+    root := Roots(denominator)[1][1];
 
-    F := Parent(f);
-
-    rounded_root := Qround(root,1);
-    print(rounded_root);
-
-    print(Type(z0));
-
-    print(z0 + rounded_root);
+    //to do comparisons with the root, we need to get an approximation
+    C := ComplexField(20);
+    F := Parent(root);
+    min_pol := MinimalPolynomial(root);
+    root := Roots(min_pol, C)[1][1];
 
     geom := [];
-    if (rounded_root-z0)^2 eq (domain[2]-z0)^2 then //inside a radius
+    if Abs(root) ge Abs(domain[2]-z0) then //inside a radius
         if b ne 0 then
             c := -a / b;
 
@@ -64,7 +62,7 @@ function MyBinomialExpansion(f,z0,root,domain, p)
             //if b is 0 we are in the trivial case
             geom := [<numerator/a,-n>];
         end if;
-    elif root eq domain[1] then //outside a radius
+    elif Abs(root) le Abs(domain[1]-z0) then //outside a radius
         if b ne 0 then
             c := -b / a;
 
@@ -77,38 +75,6 @@ function MyBinomialExpansion(f,z0,root,domain, p)
         end if;
     end if;
     return geom;
-end function;
-
-function DomainsAndSingularities(f,z0,p)
-    //helper function to determine the different annulus domains and singularities of a given function
-    //determine singularities
-    den := Denominator(f);
-    C := ComplexField(p);
-    singularities := Roots(den, C);
-
-    //remove duplicates
-    sing_no_dup := [];
-    for s in singularities do
-        duplicate := false;
-        for sd in sing_no_dup do
-            if Abs(s[1] - z0) eq Abs(sd[1] - z0) then
-                duplicate := true;
-            end if;
-        end for;
-        if duplicate eq false then
-            Append(~sing_no_dup, s);
-        end if;
-    end for;
-
-    //make the domainmap
-    sorted_singularities := Sort(sing_no_dup, func<a, b | Abs(a[1] - z0) - Abs(b[1] - z0)>);
-    bounds := [z0] cat [s[1] : s in sorted_singularities] cat [C!1e20];
-    DomainMap := AssociativeArray(Integers());
-    for i in [0..#bounds-2] do
-        DomainMap[i] := <bounds[i+1], bounds[i+2]>; 
-    end for;
-
-    return <DomainMap,singularities>;
 end function;
 
 function LaurentSeriesAroundPoint(f, z0, domain, p)
@@ -132,7 +98,7 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
                 Append(~terms, <coeff, i>);
             end if;
         end for;
-        return <terms,z0>;
+        return terms;
     end if;
     
     //we first need to calculate the partial fraction decomposition (where all denominators are linear (to a power))
@@ -140,13 +106,11 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
 
     //for each part in the decomposition we determine the geometric series and add them together
     laurent_expansion := [];
-    for rational_function in decomposition do
+    for component in decomposition do
         //we must first convert the function to a geometric series
         
-        root := rational_function[2];
-        f := rational_function[1];
 
-        geom := MyBinomialExpansion(f,z0, root, domain, p);
+        geom := MyBinomialExpansion(component,z0, domain, p);
 
         //we add the geometric series to our current series
         for g_term in geom do
@@ -189,6 +153,45 @@ function PrettyLaurentSeries(laurent_series, point, p) //TODO don't print bracke
     return Join(terms, " + ");
 end function;
 
+function DomainsAndSingularities(f,z0,p)
+    //helper function to determine the different annulus domains and singularities of a given function
+    //determine singularities
+    den := Denominator(f);
+    C := ComplexField(20);
+    singularities := Roots(den, C);
+
+    //remove duplicates
+    sing_no_dup := [];
+    for s in singularities do
+        duplicate := false;
+        for sd in sing_no_dup do
+            if Abs(s[1] - z0) eq Abs(sd[1] - z0) then
+                duplicate := true;
+            end if;
+        end for;
+        if duplicate eq false then
+            Append(~sing_no_dup, s);
+        end if;
+    end for;
+
+    //make the domainmap
+    sorted_singularities := Sort(sing_no_dup, func<a, b | Abs(a[1] - z0) - Abs(b[1] - z0)>);
+    bounds := [C!z0];
+    for s in sorted_singularities do
+        if not s[1] in bounds then
+            Append(~bounds, s[1]);
+        end if;
+    end for;
+    Append(~bounds,C!1e20);
+
+    DomainMap := AssociativeArray(Integers());
+    for i in [0..#bounds-2] do
+        DomainMap[i] := <bounds[i+1], bounds[i+2]>; 
+    end for;
+
+    return <DomainMap,singularities>;
+end function;
+
 //the main function of this project. prints all the relevent information about the laurent/taylorexpansion of a given rational function
 LaurentAnalysis := procedure(f, z0, p);
     printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(f), z0;
@@ -221,8 +224,11 @@ LaurentAnalysis := procedure(f, z0, p);
     end for;
 end procedure;
 
-function SeriesEqual(f,z0,domain,p) 
+function SeriesEqual(f,z0,d,p) 
     //helper function to automatically test equality of our own implementation and magmas implementation
+
+    tup := DomainsAndSingularities(f,z0,p);
+    domain := tup[1][d];
 
     //we first compute the magma laurent series around the point (how to do this in a nice way?)
     K<t> := Parent(f);
@@ -233,7 +239,7 @@ function SeriesEqual(f,z0,domain,p)
     magma_series_list := [<Coefficient(magma_series, i),i> : i in [-p/2..p/2]];
 
     //we then compute our own series
-    my_series := LaurentSeriesAroundPoint(f, z0, domain, p)[1];
+    my_series := LaurentSeriesAroundPoint(f, z0, domain, p);
 
     //we compare the coefficients
     for term in my_series do
@@ -254,6 +260,8 @@ function SeriesEqual(f,z0,domain,p)
             return false;
         end if;
     end for;
+    print(magma_series_list);
+    print(my_series);
     return false;
 end function;
 
@@ -278,8 +286,10 @@ TestLaurentSeriesAroundPoint := procedure()
     assert SeriesEqual(1/z, 1, 0, 20);
     assert SeriesEqual(1/(z^2+2*z), 1, 0, 20);
     assert SeriesEqual((z - 3)/(z^2 + 1), 1/2, 0, 20); 
-
     //TODO test around the complex number i
+
+    //tests outside the convergence radius
+    assert SeriesEqual(1/(1-z), 0, 1, 20);
 end procedure;
 
 
