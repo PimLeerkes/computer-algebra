@@ -1,7 +1,5 @@
 function MyPartialFractionDecomposition(f,p)
 
-    C := ComplexField(p);
-
     //First we need to determine the factorization of the denominator in order to know which field extensions are needed
     den_f := Factorisation(Denominator(f));
 
@@ -39,14 +37,31 @@ function MyBinomialExpansion(f, z0, domain, p)
     //we need the following values
     numerator := f[3];
     denominator := f[1];
+
+    //if we only have a numerator we are done immediately
+    if denominator eq 1 then
+        F<t> := RationalFunctionField(Rationals());
+        R := PolynomialRing(BaseRing(F));
+        f := R!denominator;
+        terms := [];
+        for i in [0..Degree(f)] do
+            coeff := Coefficient(f, i);
+            if coeff ne 0 then
+                Append(~terms, <coeff, i>);
+            end if;
+        end for;
+        return terms;
+    end if;
+
     n := f[2]; //the multiplicity of the denominator
     b := Coefficient(denominator,0);
     a := Coefficient(denominator,1);
+    print(denominator);
+    print(Roots(denominator));
     root := Roots(denominator)[1][1];
 
     //to do comparisons with the root, we need to get an approximation
     C := ComplexField(20);
-    F := Parent(root);
     min_pol := MinimalPolynomial(root);
     root := Roots(min_pol, C)[1][1];
 
@@ -104,28 +119,29 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
     //we first need to calculate the partial fraction decomposition (where all denominators are linear (to a power))
     decomposition := MyPartialFractionDecomposition(f_sub,p);
 
-    //for each part in the decomposition we determine the geometric series and add them together
+    //for each part in the decomposition we determine the series and add them together
     laurent_expansion := [];
     for component in decomposition do
-        //we must first convert the function to a geometric series
-        
-
-        geom := MyBinomialExpansion(component,z0, domain, p);
+        //we must first convert the function to a series (using binomial theorem)
+        bin := MyBinomialExpansion(component,z0, domain, p);
 
         //we add the geometric series to our current series
-        for g_term in geom do
+        new_laurent_expansion := [];
+        for g_term in bin do
             exponent_in_list := false;
             for i in [1..#laurent_expansion] do
                 if g_term[2] eq laurent_expansion[i][2] then
                     c := g_term[1] + laurent_expansion[i][1];
-                    laurent_expansion[i] := <c,laurent_expansion[i][2]>;
+                    new_laurent_expansion[i] := <c,laurent_expansion[i][2]>;
                     exponent_in_list := true;
+                    break;
                 end if;
             end for;
             if exponent_in_list eq false then
                 laurent_expansion := laurent_expansion cat [g_term];
             end if;
         end for;   
+        laurent_expansion := new_laurent_expansion;
     end for;
 
     //we return the laurent expansion, which can later be used to pretty print the series substituted with the (z-point)
@@ -230,12 +246,17 @@ function SeriesEqual(f,z0,d,p)
     tup := DomainsAndSingularities(f,z0,p);
     domain := tup[1][d];
 
-    //we first compute the magma laurent series around the point (how to do this in a nice way?)
+    //we first compute the magma laurent series around the point
     K<t> := Parent(f);
-    f_sub := Evaluate(f, t + z0);
     Q := Rationals();
     L := LaurentSeriesRing(Q,p);
-    magma_series := L ! f_sub;
+    if d gt 1 then
+        f_sub := Evaluate(f, 1/t);
+        magma_series := L ! f_sub;
+    else
+        f_sub := Evaluate(f, t + z0);
+        magma_series := L ! f_sub;
+    end if;
     magma_series_list := [<Coefficient(magma_series, i),i> : i in [-p/2..p/2]];
 
     //we then compute our own series
@@ -290,6 +311,9 @@ TestLaurentSeriesAroundPoint := procedure()
 
     //tests outside the convergence radius
     assert SeriesEqual(1/(1-z), 0, 1, 20);
+
+
+    //TODO test on elementary trancendental functions
 end procedure;
 
 
@@ -304,4 +328,28 @@ TestLaurentAnalysis := procedure()
     prec := 20;
     z0 := 0;
     LaurentAnalysis(f,z0,prec);
+end procedure;
+
+
+//To test the performance
+
+function RandomRationalPolynomial(d, N)
+    Q := Rationals();
+    R<x> := PolynomialRing(Q);
+    coeffs := [Random([-N..N]) : i in [0..d]];
+    return R ! coeffs;
+end function;
+
+function RandomRationalFunction(degP, degQ, N)
+    p := RandomRationalPolynomial(degP, N);
+    q := RandomRationalPolynomial(degQ, N);
+    while q eq 0 do
+        q := RandomRationalPolynomial(degQ, N);
+    end while;
+    return p / q;
+end function;
+
+TestLaurentPerformance :=  procedure()
+    F := RandomRationalFunction(3,3,10);
+    time LaurentAnalysis(F,0,20);
 end procedure;
