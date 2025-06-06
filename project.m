@@ -8,10 +8,8 @@ function MyPartialFractionDecomposition(f,p)
     //We check the field extentions
     extentions := [];
     for factor in den_f do
-        print(Type(factor[1]));
         if Degree(factor[1]) gt 1 then
-            root := 
-            Append(~extentions,<factor[1],);
+            Append(~extentions,factor[1]);
         end if;
     end for;
 
@@ -28,18 +26,16 @@ function MyPartialFractionDecomposition(f,p)
     full_decomposition := PartialFractionDecomposition(new_f); //TODO make own version of this
 
     //TODO we should return approximate roots as well
-    C := ComplexField(p);
     seq := [];
     for factor in full_decomposition do
         root := Roots(factor[1])[1][1];
-        print(Type(root));
         Append(~seq, <factor,root>);
     end for;
 
     return seq;
 end function;
 
-function MyGeometricSeries(f,z0,root,domain, p)
+function MyBinomialExpansion(f,z0,root,domain, p)
     //we need the following values
     numerator := f[3];
     denominator := f[1];
@@ -47,11 +43,17 @@ function MyGeometricSeries(f,z0,root,domain, p)
     b := Coefficient(denominator,0);
     a := Coefficient(denominator,1);
 
-    print(root);
-    print(domain[2]);
+    F := Parent(f);
+
+    rounded_root := Qround(root,1);
+    print(rounded_root);
+
+    print(Type(z0));
+
+    print(z0 + rounded_root);
 
     geom := [];
-    if Abs(root-z0) eq Abs(domain[2]-z0) then //inside a radius
+    if (rounded_root-z0)^2 eq (domain[2]-z0)^2 then //inside a radius
         if b ne 0 then
             c := -a / b;
 
@@ -144,7 +146,7 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
         root := rational_function[2];
         f := rational_function[1];
 
-        geom := MyGeometricSeries(f,z0, root, domain, p);
+        geom := MyBinomialExpansion(f,z0, root, domain, p);
 
         //we add the geometric series to our current series
         for g_term in geom do
