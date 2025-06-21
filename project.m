@@ -1,3 +1,10 @@
+F := FreeAlgebra(Rationals(), 5);
+z := F.1;
+exp_z := F.2;
+log_z := F.3;
+sin_z := F.4;
+cos_z := F.5;
+
 function MyPartialFractionDecomposition(f,p)
 
     //First we need to determine the factorization of the denominator in order to know which field extensions are needed
@@ -40,16 +47,7 @@ function MyBinomialExpansion(f, z0, domain, p)
 
     //if we only have a numerator we are done immediately
     if denominator eq 1 then
-        F<t> := RationalFunctionField(Rationals());
-        R := PolynomialRing(BaseRing(F));
-        f := R!denominator;
-        terms := [];
-        for i in [0..Degree(f)] do
-            coeff := Coefficient(f, i);
-            if coeff ne 0 then
-                Append(~terms, <coeff, i>);
-            end if;
-        end for;
+        terms := [<numerator,0>];
         return terms;
     end if;
 
@@ -124,20 +122,20 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
         //we must first convert the function to a series (using binomial theorem)
         bin := MyBinomialExpansion(component,z0, domain, p);
 
-        //we add the geometric series to our current series
-        for g_term in bin do
-            exponent_in_list := false;
+        //we add the new series to our current series
+        for b_term in bin do
+            exponent_in_array := false;
             for i in Keys(laurent_expansion) do
                 //we check if the exponents are the same and if so, we add the coefficients together
-                if g_term[2] eq i then
-                    c := g_term[1] + laurent_expansion[i];
+                if b_term[2] eq i then
+                    c := b_term[1] + laurent_expansion[i];
                     laurent_expansion[i] := c;
-                    exponent_in_list := true;
+                    exponent_in_array := true;
                     break;
                 end if;
             end for;
-            if exponent_in_list eq false then
-                laurent_expansion[g_term[2]] := g_term[1];
+            if exponent_in_array eq false then
+                laurent_expansion[b_term[2]] := b_term[1];
             end if;
         end for;   
     end for;
@@ -297,7 +295,7 @@ end function;
 
 /////////////////////////////////////// Testing ////////////////////////////////////////////////
 
-function RandomRationalPolynomial(d, N)
+function RandomPolynomial(d, N)
     Q := Rationals();
     R<x> := PolynomialRing(Q);
     coeffs := [Random([-N..N]) : i in [0..d]];
@@ -305,10 +303,10 @@ function RandomRationalPolynomial(d, N)
 end function;
 
 function RandomRationalFunction(degP, degQ, N)
-    p := RandomRationalPolynomial(degP, N);
-    q := RandomRationalPolynomial(degQ, N);
+    p := RandomPolynomial(degP, N);
+    q := RandomPolynomial(degQ, N);
     while q eq 0 do
-        q := RandomRationalPolynomial(degQ, N);
+        q := RandomPolynomial(degQ, N);
     end while;
     return p / q;
 end function;
@@ -338,12 +336,13 @@ TestLaurentSeriesAroundPoint := procedure()
     //tests outside the convergence radius
     //assert SeriesEqual(1/(1-z), 0, 1, 20);
 
+    //test on a random larger rational function 
+    F := RandomRationalFunction(3,3,10);
+    assert SeriesEqual(F,0,0,20);
+    assert SeriesEqual(F,3/2,0,20);
 
     //TODO test on elementary trancendental functions
-
-    //test on a random larger rational function 
-    F := RandomRationalFunction(3,3,10); //goes wrong. My version is wrong!
-    assert SeriesEqual(F,0,0,20);
+    assert SeriesEqual(exp_z, 0, 0, 20);
 end procedure;
 
 
