@@ -11,20 +11,7 @@ function exp_z(p)
     return 1 + z + z^2/2 + z^3/6 + z^4/24 + z^5/120 + z^6/720 + z^7/5040;
 end function;
 
-function NewtonRaphson(f, f_prime, z0 : eps := 1e-20, max_iter := 30)
-    C := Parent(z0);
-    z := z0;
-    for i in [1..max_iter] do
-        fz := f(z);
-        if Abs(fz) lt eps then
-            return z;
-        end if;
-        z := z - fz / f_prime(z);
-    end for;
-    error "Did not converge";
-end function;
-
-function MyPartialFractionDecomposition(f,p)
+function MyPartialFractionDecomposition(f)
 
     //First we need to determine the factorization of the denominator in order to know which field extensions are needed
     den_f := Factorisation(Denominator(f));
@@ -41,7 +28,7 @@ function MyPartialFractionDecomposition(f,p)
     if #extentions eq 0 then
         Q_ext := BaseRing(Parent(f));
     else
-        Q_ext, roots := SplittingField(extentions);
+        Q_ext := SplittingField(extentions);
     end if;
 
     K<z> := RationalFunctionField(Q_ext);
@@ -134,7 +121,7 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
     end if;
     
     //we first need to calculate the partial fraction decomposition (where all denominators are linear (to a power))
-    decomposition := MyPartialFractionDecomposition(f_sub, p);
+    decomposition := MyPartialFractionDecomposition(f_sub);
 
     //for each part in the decomposition we determine the series and add them together
     laurent_expansion := AssociativeArray(Integers());
@@ -234,7 +221,7 @@ LaurentAnalysis := procedure(f, z0, p);
     domains := tup[1];
     singularities := tup[2];
 
-    print("\nsingularities: ");
+    print("\nApproximate singularities: ");
     punctured := false;
     for s in singularities do
         printf "pole of order: %o at: %o\n", s[2], s[1];
@@ -376,16 +363,10 @@ TestLaurentSeriesAroundPoint := procedure()
     //test outside convergence radius + alternative expansion point:
     assert SeriesEqual(1/(1-z), 1/2, 1, 20);
 
-    //C := ComplexField(50);
-    //f := func<z | Exp(z)-1>;
-    //f_prime := func<z | Exp(z)-1>;
-
-    //root := NewtonRaphson(f, f_prime, C!1.0);
-    //"root:", root; // zou ~0.693 moeten geven
-
     //tests on elementary trancendental functions
-    assert SeriesEqual(2*exp_z(20), 0, 0, 20);
+    assert SeriesEqual(2*exp_z(20), 0, 0, 20);//TODO do exp_z with symbol and later convert based on chosen precision + 3 or something
     assert SeriesEqual(exp_z(20) + 1/z, 0, 0, 20);
+    assert SeriesEqual(exp_z(20)/z, 0, 0, 20);
 end procedure;
 
 
@@ -403,14 +384,17 @@ TestLaurentAnalysis := procedure()
     f := 1/(z^2+2*z);
     prec := 20;
     z0 := 0;
-    LaurentAnalysis(f,z0,prec);
+    LaurentAnalysis(f,z0,prec); //TODO test with trancendental function
 end procedure;
 
 
 //To test the performance
 
 TestLaurentPerformance :=  procedure() 
-    F := RandomRationalFunction(4,4,10);
-    time LaurentAnalysis(F,0,20);
+    F := RandomRationalFunction(10,2,5);
+    Q := Rationals();
+    K<z> := RationalFunctionField(Q);
+
+    time LaurentAnalysis(F,0,5);
 end procedure;
 //full laurent analysis on a degree 5 rational function has average time of: 52.840 s
