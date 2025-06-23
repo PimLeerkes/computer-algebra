@@ -81,8 +81,6 @@ function MyBinomialExpansion(f, z0, domain, p)
     min_pol := MinimalPolynomial(root);
     root := Roots(min_pol, C)[1][1];
 
-    print(root);
-    print(domain);
     geom := [];
     if Abs(root-z0) gt Abs(domain[1]-z0) then 
         if b ne 0 then
@@ -280,7 +278,8 @@ function SeriesEqual(f,z0,d,p)
     Q := Rationals();
     L := LaurentSeriesRing(Q,p);
     if d eq 1 then //naive but we don't check other cases
-        f_sub := Evaluate(f, 1/t);
+        f_sub := Evaluate(f, t + z0);
+        f_sub := Evaluate(f_sub, 1/t);
         magma_series := L ! f_sub;
         magma_series_list := [<Coefficient(magma_series, i),-i> : i in [-p/2..p/2]];
     else
@@ -288,7 +287,6 @@ function SeriesEqual(f,z0,d,p)
         magma_series := L ! f_sub;
         magma_series_list := [<Coefficient(magma_series, i),i> : i in [-p/2..p/2]];
     end if;
-    print(magma_series);
 
     //we then compute our own series
     my_series := LaurentSeriesAroundPoint(f, z0, domain, p);
@@ -369,8 +367,15 @@ TestLaurentSeriesAroundPoint := procedure()
     assert SeriesEqual((1/5*z^3 - 9/10*z^2 - 113/20*z - 231/40)/(z^3 + 29/10*z^2 + 3/4*z - 137/40),3/2,0,20);
     assert SeriesEqual((z^3 + 7*z^2 - 6*z + 3)/(z^3 - 4*z^2 + 5*z - 4),3/2,0,20);
 
+    //test outside convergence radius:
+    assert SeriesEqual(1/(1-z), 0, 1, 20);
+    assert SeriesEqual((z - 3)/(z^2 + 1), 0, 1, 20); 
+    assert SeriesEqual(1/(z^2+2*z), 0, 1, 20);
+    assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,1,20);
 
-    
+    //test outside convergence radius + alternative expansion point:
+    assert SeriesEqual(1/(1-z), 1/2, 1, 20);
+
     //C := ComplexField(50);
     //f := func<z | Exp(z)-1>;
     //f_prime := func<z | Exp(z)-1>;
@@ -381,15 +386,6 @@ TestLaurentSeriesAroundPoint := procedure()
     //tests on elementary trancendental functions
     assert SeriesEqual(2*exp_z(20), 0, 0, 20);
     assert SeriesEqual(exp_z(20) + 1/z, 0, 0, 20);
-
-    //test outside convergence radius:
-    assert SeriesEqual(1/(1-z), 0, 1, 20);
-    assert SeriesEqual((z - 3)/(z^2 + 1), 0, 1, 20); 
-    assert SeriesEqual(1/(z^2+2*z), 0, 1, 20);
-    assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,1,20);
-
-    //test outside convergence radius + alternative expansion point:
-    assert SeriesEqual(1/(1-z), 1, 1, 20);
 end procedure;
 
 
