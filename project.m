@@ -1,9 +1,28 @@
-F := FreeAlgebra(Rationals(), 5);
-z := F.1;
-exp_z := F.2;
-log_z := F.3;
-sin_z := F.4;
-cos_z := F.5;
+//representation of elementary trancendental functions:
+//F := FreeAlgebra(Rationals(), 5);
+//w := F.1;
+//exp_w := F.2;
+//log_w := F.3;
+//sin_w := F.4;
+//cos_w := F.5;
+
+function exp_z(p)
+    F<z> := PolynomialRing(Rationals());
+    return 1 + z + z^2/2 + z^3/6 + z^4/24 + z^5/120 + z^6/720 + z^7/5040;
+end function;
+
+function NewtonRaphson(f, f_prime, z0 : eps := 1e-20, max_iter := 30)
+    C := Parent(z0);
+    z := z0;
+    for i in [1..max_iter] do
+        fz := f(z);
+        if Abs(fz) lt eps then
+            return z;
+        end if;
+        z := z - fz / f_prime(z);
+    end for;
+    error "Did not converge";
+end function;
 
 function MyPartialFractionDecomposition(f,p)
 
@@ -22,16 +41,15 @@ function MyPartialFractionDecomposition(f,p)
     if #extentions eq 0 then
         Q_ext := BaseRing(Parent(f));
     else
-        Q_ext, roots := SplittingField(extentions : Abs := true, Opt := true);
+        Q_ext, roots := SplittingField(extentions);
     end if;
 
     K<z> := RationalFunctionField(Q_ext);
 
     //now we compute a partial fraction decomposition again over the extended field
     new_f := K ! f;
-    full_decomposition := PartialFractionDecomposition(new_f); //TODO make own version of this
+    full_decomposition := PartialFractionDecomposition(new_f); 
 
-    //TODO we should return approximate roots as well
     seq := [];
     for factor in full_decomposition do
         Append(~seq, factor);
@@ -47,7 +65,9 @@ function MyBinomialExpansion(f, z0, domain, p)
 
     //if we only have a numerator we are done immediately
     if denominator eq 1 then
-        terms := [<numerator,0>];
+        a := Coefficient(numerator,0);
+        b := Coefficient(numerator,1);
+        terms := [<a,0>,<b,1>];
         return terms;
     end if;
 
@@ -62,23 +82,26 @@ function MyBinomialExpansion(f, z0, domain, p)
     root := Roots(min_pol, C)[1][1];
 
     geom := [];
-    if Abs(root) ge Abs(domain[2]-z0) then //inside a radius
+    if Abs(root-z0) ge Abs(domain[2]-z0) then //inside a radius
         if b ne 0 then
             c := -a / b;
 
             for i in [0..p] do
-                geom := geom cat [<c^i * 1/b^n * numerator * Binomial(n + i - 1, i),i>];
+                Append(~geom, <c^i * 1/b^n * numerator * Binomial(n + i - 1, i),i>);
             end for;
         else
             //if b is 0 we are in the trivial case
             geom := [<numerator/a,-n>];
         end if;
-    elif Abs(root) le Abs(domain[1]-z0) then //outside a radius
+    else //outside a radius
+        print(root);
+        print(domain);
+        print("kom ik ooit hier?");
         if b ne 0 then
             c := -b / a;
 
             for i in [0..p] do
-                geom := geom cat [<c^i * 1/b^n * numerator * Binomial(n + i - 1, i),-n-i>];
+                Append(~geom, <c^i * 1/b^n * numerator * Binomial(n + i - 1, i),-n-i>);
             end for;
         else
             //if b is 0 we are in the trivial case
@@ -90,9 +113,10 @@ function MyBinomialExpansion(f, z0, domain, p)
 end function;
 
 function LaurentSeriesAroundPoint(f, z0, domain, p)
-    //z0 needs to be a point in the complex numbers
+    //z0 needs to be a rational number
     //f needs to be a rational function
-    //assert Parent(z0) eq ComplexField();
+    Q := Rationals();
+    assert BaseRing(Parent(f)) eq Q;
 
     //substitute t := z - z0 => z := t + z0
     K<t> := Parent(f);
@@ -100,8 +124,7 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
 
     //if f is a polynomial, we are done immediately
     if Denominator(f) eq 1 then
-        F<t> := RationalFunctionField(Rationals());
-        R := PolynomialRing(BaseRing(F));
+        R := PolynomialRing(Rationals());
         f := R!f;
         laurent_expansion := AssociativeArray(Integers());
         for i in [0..Degree(f)] do
@@ -114,7 +137,7 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
     end if;
     
     //we first need to calculate the partial fraction decomposition (where all denominators are linear (to a power))
-    decomposition := MyPartialFractionDecomposition(f_sub,p);
+    decomposition := MyPartialFractionDecomposition(f_sub, p);
 
     //for each part in the decomposition we determine the series and add them together
     laurent_expansion := AssociativeArray(Integers());
@@ -205,7 +228,10 @@ end function;
 
 //the main function of this project. prints all the relevent information about the laurent/taylorexpansion of a given rational function
 LaurentAnalysis := procedure(f, z0, p);
-    printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(f), z0;
+    printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(f), z0; //TODO pretty print this function properly
+
+    //if our function contains trancendental components, we need to replace them with a sufficiently truncated series to approximate it
+    //f := Approximate(f);
 
     tup := DomainsAndSingularities(f,z0,p);
     domains := tup[1];
@@ -224,7 +250,11 @@ LaurentAnalysis := procedure(f, z0, p);
     for d in Keys(domains) do
         laurent_series := LaurentSeriesAroundPoint(f,z0,domains[d],p);
 
-        printf "\nThe laurent/taylor series around %o on domain %o is: ", z0, d; //TODO tell user if it is taylor or laurent
+        type_series := "taylor";
+        if #singularities gt 0 then
+            type_series := "laurent";
+        end if;
+        printf "\nThe %o series around %o on domain %o is: ",type_series, z0, d; //TODO tell user if it is taylor or laurent
         print(PrettyLaurentSeries(laurent_series,z0,p));
 
         non_zero := true;
@@ -242,7 +272,7 @@ end procedure;
 
 function SeriesEqual(f,z0,d,p) 
     //helper function to automatically test equality of our own implementation and magmas implementation
-
+    //testing on alternative domains would require a lot of extra code for the built in magma series so we will only test this manually
     tup := DomainsAndSingularities(f,z0,p);
     domain := tup[1][d];
 
@@ -250,17 +280,12 @@ function SeriesEqual(f,z0,d,p)
     K<t> := Parent(f);
     Q := Rationals();
     L := LaurentSeriesRing(Q,p);
-    if d gt 0 then //TODO make it work outside the convergence radius
+    if d eq 1 then
         f_sub := Evaluate(f, 1/t);
-        print(f_sub);
-        magma_series := L ! f_sub;
-        K<z> := Parent(f);
-        magma_series := Evaluate(magma_series, 1/z);
-        print(magma_series);
     else
         f_sub := Evaluate(f, t + z0);
-        magma_series := L ! f_sub;
     end if;
+    magma_series := L ! f_sub;
     magma_series_list := [<Coefficient(magma_series, i),i> : i in [-p/2..p/2]];
 
     //we then compute our own series
@@ -297,7 +322,7 @@ end function;
 
 function RandomPolynomial(d, N)
     Q := Rationals();
-    R<x> := PolynomialRing(Q);
+    R<z> := PolynomialRing(Q);
     coeffs := [Random([-N..N]) : i in [0..d]];
     return R ! coeffs;
 end function;
@@ -331,18 +356,33 @@ TestLaurentSeriesAroundPoint := procedure()
     assert SeriesEqual(1/z, 1, 0, 20);
     assert SeriesEqual(1/(z^2+2*z), 1, 0, 20);
     assert SeriesEqual((z - 3)/(z^2 + 1), 1/2, 0, 20); 
-    //TODO test around the complex number i
-
-    //tests outside the convergence radius
-    //assert SeriesEqual(1/(1-z), 0, 1, 20);
 
     //test on a random larger rational function 
     F := RandomRationalFunction(3,3,10);
     assert SeriesEqual(F,0,0,20);
     assert SeriesEqual(F,3/2,0,20);
+    //three cases that were problematic
+    assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,0,20);
+    assert SeriesEqual((5/3*z^3 + 61/6*z^2 + 73/4*z + 179/24)/(z^3 + 17/6*z^2 + 17/12*z - 101/24),3/2,0,20);
+    assert SeriesEqual((1/5*z^3 - 9/10*z^2 - 113/20*z - 231/40)/(z^3 + 29/10*z^2 + 3/4*z - 137/40),3/2,0,20);
+    assert SeriesEqual((z^3 + 7*z^2 - 6*z + 3)/(z^3 - 4*z^2 + 5*z - 4),3/2,0,20);
 
-    //TODO test on elementary trancendental functions
-    assert SeriesEqual(exp_z, 0, 0, 20);
+
+    
+    //C := ComplexField(50);
+    //f := func<z | Exp(z)-1>;
+    //f_prime := func<z | Exp(z)-1>;
+
+    //root := NewtonRaphson(f, f_prime, C!1.0);
+    //"root:", root; // zou ~0.693 moeten geven
+
+    //tests on elementary trancendental functions
+    assert SeriesEqual(2*exp_z(20), 0, 0, 20);
+    assert SeriesEqual(exp_z(20) + 1/z, 0, 0, 20);
+
+
+    //test outside convergence radius:
+    assert SeriesEqual(1/(1-z), 0, 1, 20);
 end procedure;
 
 
@@ -350,10 +390,14 @@ TestLaurentAnalysis := procedure()
     //to test the whole laurent analysis manually
     Q := Rationals();
     K<z> := RationalFunctionField(Q);
+    //f := -(z + z^2/2 + z^3/6 + z^4/24 + z^5/120 + z^6/720 + z^7/5040 + z^8/40320 + z^9/362880 + z^10/3628800 + z^11/39916800);
+    //print(Numerator(f));
+    //print(Roots(Numerator(f),ComplexField(100))); 
     //f := 1/(1-z);
-    f := (z - 3)/(z^2 + 1);
+    //f := (z - 3)/(z^2 + 1);
     //f := z + 1/z;
-    //f := 1/(z^2+2*z);
+    //f := exp_w + w^2;
+    f := 1/(z^2+2*z);
     prec := 20;
     z0 := 0;
     LaurentAnalysis(f,z0,prec);
@@ -362,8 +406,8 @@ end procedure;
 
 //To test the performance
 
-TestLaurentPerformance :=  procedure()
-    F := RandomRationalFunction(5,5,10);
+TestLaurentPerformance :=  procedure() 
+    F := RandomRationalFunction(4,4,10);
     time LaurentAnalysis(F,0,20);
 end procedure;
 //full laurent analysis on a degree 5 rational function has average time of: 52.840 s
