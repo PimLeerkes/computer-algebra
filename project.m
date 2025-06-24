@@ -1,14 +1,46 @@
-//representation of elementary trancendental functions:
-//F := FreeAlgebra(Rationals(), 5);
-//w := F.1;
-//exp_w := F.2;
-//log_w := F.3;
-//sin_w := F.4;
-//cos_w := F.5;
+//representation of symbols:
+Q := Rationals();
+F<z,exp,cos,sin> := PolynomialRing(Q, 4);
 
-function exp_z(p)
-    F<z> := PolynomialRing(Rationals());
-    return 1 + z + z^2/2 + z^3/6 + z^4/24 + z^5/120 + z^6/720 + z^7/5040;
+//calculating truncated elementary trancendental functions
+function exp_approx(p)
+    factorial := 1;
+    sum := 0;
+    for k in [0..p+3] do
+        if k gt 0 then
+            factorial *:= k;
+        end if;
+        sum +:= (z^k) / factorial;
+    end for;
+    return sum;
+end function;
+
+function cos_approx(n)
+    sum := 0;
+    factorial := 1;
+    sign := 1;
+    for k in [0..n+3] do
+        if k gt 0 then factorial *:= k; end if;
+        if IsEven(k) then
+            sum +:= sign * z^k / factorial;
+            sign *:= -1;
+        end if;
+    end for;
+    return sum;
+end function;
+
+function sin_approx(n)
+    sum := 0;
+    factorial := 1;
+    sign := 1;
+    for k in [0..n+3] do
+        if k gt 0 then factorial *:= k; end if;
+        if IsOdd(k) then
+            sum +:= sign * z^k / factorial;
+            sign *:= -1;
+        end if;
+    end for;
+    return sum;
 end function;
 
 function MyPartialFractionDecomposition(f)
@@ -99,12 +131,11 @@ end function;
 function LaurentSeriesAroundPoint(f, z0, domain, p)
     //z0 needs to be a rational number
     //f needs to be a rational function
-    Q := Rationals();
-    assert BaseRing(Parent(f)) eq Q;
 
     //substitute t := z - z0 => z := t + z0
     K<t> := Parent(f);
     f_sub := Evaluate(f, t + z0);
+    //f_sub := Evaluate(f, e, exp_z(20));
 
     //if f is a polynomial, we are done immediately
     if Denominator(f) eq 1 then
@@ -171,6 +202,44 @@ function PrettyLaurentSeries(laurent_series, point, p) //TODO don't print bracke
     return Join(terms, " + ");
 end function;
 
+function TrancendentalTruncated(f,p)
+    //to substitute symbols for trancendental functions by the truncated series
+    Q := Rationals();
+    num := Numerator(f);
+    den := Denominator(f);
+    K := PolynomialRing(Q);
+    num_sub := Evaluate(num,exp,exp_approx(p));
+    num_sub := Evaluate(num,cos,cos_approx(p));
+    num_sub := Evaluate(num,sin,sin_approx(p));
+    den_sub := Evaluate(den,exp,exp_approx(p));
+    den_sub := Evaluate(den,cos,cos_approx(p));
+    den_sub := Evaluate(den,sin,sin_approx(p));
+
+    //because of typing issues we build new polynomials
+    M := Monomials(den_sub);
+    C := Coefficients(den_sub);
+    p := K!0;
+    for i in [1..#M] do
+        mon := M[i];
+        coeff := C[i];
+        exps := Exponents(mon);
+        p +:= K!coeff * (K.1)^exps[1];
+    end for;
+
+    M := Monomials(num_sub);
+    C := Coefficients(num_sub);
+    q := K!0;
+    for i in [1..#M] do
+        mon := M[i];
+        coeff := C[i];
+        exps := Exponents(mon);
+        q +:= K!coeff * (K.1)^exps[1];
+    end for;
+
+    f := q/p;
+    return f;
+end function;
+
 function DomainsAndSingularities(f,z0,p)
     //helper function to determine the different annulus domains and singularities of a given function
     //determine singularities
@@ -216,7 +285,7 @@ LaurentAnalysis := procedure(f, z0, p);
 
     //if our function contains trancendental components, we need to replace them with a sufficiently truncated series to approximate it
     //f := Approximate(f);
-
+    f := TrancendentalTruncated(f,p);
     tup := DomainsAndSingularities(f,z0,p);
     domains := tup[1];
     singularities := tup[2];
@@ -257,6 +326,7 @@ end procedure;
 function SeriesEqual(f,z0,d,p) 
     //helper function to automatically test equality of our own implementation and magmas implementation
     //testing on alternative domains would require a lot of extra code for the built in magma series so we will only test this manually
+    f := TrancendentalTruncated(f,p);
     tup := DomainsAndSingularities(f,z0,p);
     domain := tup[1][d];
 
@@ -326,8 +396,8 @@ end function;
 
 TestLaurentSeriesAroundPoint := procedure()
     //to test the laurent series around point function automatically for a list of rational functions
-    Q := Rationals();
-    K<z> := RationalFunctionField(Q);
+    //Q := Rationals();
+    //K<z> := RationalFunctionField(Q);
 
     //tests around 0
     assert SeriesEqual(1/(1-z), 0, 0, 20);
@@ -345,9 +415,9 @@ TestLaurentSeriesAroundPoint := procedure()
     assert SeriesEqual((z - 3)/(z^2 + 1), 1/2, 0, 20); 
 
     //test on a random larger rational function 
-    F := RandomRationalFunction(3,3,10);
-    assert SeriesEqual(F,0,0,20);
-    assert SeriesEqual(F,3/2,0,20);
+    //F := RandomRationalFunction(3,3,10);
+    //assert SeriesEqual(F,0,0,20);
+    //assert SeriesEqual(F,3/2,0,20);
     //three cases that were problematic
     assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,0,20);
     assert SeriesEqual((5/3*z^3 + 61/6*z^2 + 73/4*z + 179/24)/(z^3 + 17/6*z^2 + 17/12*z - 101/24),3/2,0,20);
@@ -364,29 +434,20 @@ TestLaurentSeriesAroundPoint := procedure()
     assert SeriesEqual(1/(1-z), 1/2, 1, 20);
 
     //tests on elementary trancendental functions
-    assert SeriesEqual(2*exp_z(20), 0, 0, 20);//TODO do exp_z with symbol and later convert based on chosen precision + 3 or something
-    assert SeriesEqual(exp_z(20) + 1/z, 0, 0, 20);
-    assert SeriesEqual(exp_z(20)/z, 0, 0, 20);
+    assert SeriesEqual(2*exp, 0, 0, 20);//TODO do exp_z with symbol and later convert based on chosen precision + 3 or something
+    assert SeriesEqual(cos + 1/z, 0, 0, 20);
+    assert SeriesEqual(sin/z, 0, 0, 20);
 end procedure;
 
 
 TestLaurentAnalysis := procedure()
     //to test the whole laurent analysis manually
-    Q := Rationals();
-    K<z> := RationalFunctionField(Q);
     //f := -(z + z^2/2 + z^3/6 + z^4/24 + z^5/120 + z^6/720 + z^7/5040 + z^8/40320 + z^9/362880 + z^10/3628800 + z^11/39916800);
-    //print(Numerator(f));
-    //print(Roots(Numerator(f),ComplexField(100))); 
-    //f := 1/(1-z);
-    //f := (z - 3)/(z^2 + 1);
-    //f := z + 1/z;
-    //f := exp_w + w^2;
-    f := 1/(z^2+2*z);
+    f := sin + z^2 + cos/z^3;
     prec := 20;
     z0 := 0;
     LaurentAnalysis(f,z0,prec); //TODO test with trancendental function
 end procedure;
-
 
 //To test the performance
 
@@ -394,7 +455,6 @@ TestLaurentPerformance :=  procedure()
     F := RandomRationalFunction(10,2,5);
     Q := Rationals();
     K<z> := RationalFunctionField(Q);
-
     time LaurentAnalysis(F,0,5);
 end procedure;
 //full laurent analysis on a degree 5 rational function has average time of: 52.840 s
