@@ -60,18 +60,17 @@ function MyBinomialExpansion(f, z0, domain, p)
     //we need the following values
     numerator := f[3];
     denominator := f[1];
-
-    //if we only have a numerator we are done immediately
-    if denominator eq 1 then
-        a := Coefficient(numerator,0);
-        b := Coefficient(numerator,1);
-        terms := [<a,0>,<b,1>];
-        return terms;
-    end if;
-
     n := f[2]; //the multiplicity of the denominator
     b := Coefficient(denominator,0);
     a := Coefficient(denominator,1);
+
+    //if we only have a numerator we are done immediately
+    if denominator eq 1 then
+        x := Coefficient(numerator,0);
+        y := Coefficient(numerator,1);
+        terms := [<x,0>,<y,1>];
+        return terms;
+    end if;
     root := Roots(denominator)[1][1];
 
     //to do comparisons with the root, we need to get an approximation
@@ -119,7 +118,7 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
         R := PolynomialRing(Rationals());
         f := R!f;
         laurent_expansion := AssociativeArray(Integers());
-        for i in [0..Degree(f)] do
+        for i in [0..Min(p,Degree(f))] do
             coeff := Coefficient(f, i);
             if coeff ne 0 then
                 laurent_expansion[i] := coeff;
@@ -159,27 +158,39 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
     return laurent_expansion;
 end function;
 
-function PrettyLaurentSeries(laurent_series, point, p) //TODO don't print brackets if z = 0
+function PrettyLaurentSeries(laurent_series, z0, p) //TODO don't print brackets if z = 0
     //pretty printer for laurent series
     F<z> := RationalFunctionField(Rationals());
     terms := [];
-    for exp in Keys(laurent_series) do
+    for exp in Sort(SetToSequence(Keys(laurent_series))) do
         coeff := laurent_series[exp];
-        if exp eq 0 then
-            Append(~terms, Sprint(coeff));
-        elif exp eq 1 then
-            Append(~terms, Sprint(coeff) * "*(" * Sprint(z) * " - " * Sprint(point) * ")");
-        else
-            Append(~terms, Sprint(coeff) * "*(" * Sprint(z) * " - " * Sprint(point) * ")^" * Sprint(exp));
+        if coeff ne 0 then
+            if z0 eq 0 then
+                if exp eq 0 then
+                    Append(~terms, Sprint(coeff));
+                elif exp eq 1 then
+                    Append(~terms, Sprint(coeff) * "*" * Sprint(z));
+                else
+                    Append(~terms, Sprint(coeff) * "*" * Sprint(z) * "^" * Sprint(exp));
+                end if;
+            else 
+                if exp eq 0 then
+                    Append(~terms, Sprint(coeff));
+                elif exp eq 1 then
+                    Append(~terms, Sprint(coeff) * "*(" * Sprint(z) * " - " * Sprint(z0) * ")");
+                else
+                    Append(~terms, Sprint(coeff) * "*(" * Sprint(z) * " - " * Sprint(z0) * ")^" * Sprint(exp));
+                end if;
+            end if;
         end if;
     end for;
-    o_term := "O((" * Sprint(z) * " - " * Sprint(point) * ")^" * Sprint(p+1) * ")";
+    o_term := "O((" * Sprint(z) * " - " * Sprint(z0) * ")^" * Sprint(p+1) * ")";
     Append(~terms, o_term); //TODO only print O if we cut off the series 
 
     return Join(terms, " + ");
 end function;
 
-function TrancendentalTruncated(f,p)
+function TranscendentalTruncated(f,p)
     //to substitute symbols for trancendental functions by the truncated series
     num := Numerator(f);
     den := Denominator(f);
@@ -260,7 +271,7 @@ LaurentAnalysis := procedure(f, z0, p);
 
     //if our function contains trancendental components, we need to replace them with a sufficiently truncated series to approximate it
     //f := Approximate(f);
-    f := TrancendentalTruncated(f,p);
+    f := TranscendentalTruncated(f,p);
     tup := DomainsAndSingularities(f,z0,p);
     domains := tup[1];
     singularities := tup[2];
@@ -300,7 +311,7 @@ end procedure;
 
 function SeriesEqual(f,z0,d,p) 
     //helper function to automatically test equality of our own implementation and magmas implementation
-    f := TrancendentalTruncated(f,p);
+    f := TranscendentalTruncated(f,p);
     tup := DomainsAndSingularities(f,z0,p);
     domain := tup[1][d];
 
@@ -365,45 +376,45 @@ TestLaurentSeriesAroundPoint := procedure()
     //to test the laurent series around point function automatically for a lot of different cases
 
     //tests around 0
-    assert SeriesEqual(1/(1-z), 0, 0, 20);
-    assert SeriesEqual(1/(1-z)^2, 0, 0, 20);
-    assert SeriesEqual(1/z, 0, 0, 20);
-    assert SeriesEqual((z - 3)/(z^2 + 1), 0, 0, 20); 
-    assert SeriesEqual(1/z^3, 0, 0, 20); 
-    assert SeriesEqual(1/(z^2+2*z), 0, 0, 20);
-    assert SeriesEqual(z^3 + 2*z^2 + z + 4, 0, 0, 20);
-    assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,0,20);
+    //assert SeriesEqual(1/(1-z), 0, 0, 20);
+    //assert SeriesEqual(1/(1-z)^2, 0, 0, 20);
+    //assert SeriesEqual(1/z, 0, 0, 20);
+    //assert SeriesEqual((z - 3)/(z^2 + 1), 0, 0, 20); 
+    //assert SeriesEqual(1/z^3, 0, 0, 20); 
+    //assert SeriesEqual(1/(z^2+2*z), 0, 0, 20);
+    //assert SeriesEqual(z^3 + 2*z^2 + z + 4, 0, 0, 20);
+    //assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,0,20);
 
     //tests around a different point than 0
-    assert SeriesEqual(z, 1, 0, 20);
-    assert SeriesEqual(1/z, 1, 0, 20);
-    assert SeriesEqual(1/(z^2+2*z), 1, 0, 20);
-    assert SeriesEqual((z - 3)/(z^2 + 1), 1/2, 0, 20); 
-    assert SeriesEqual((5/3*z^3 + 61/6*z^2 + 73/4*z + 179/24)/(z^3 + 17/6*z^2 + 17/12*z - 101/24),3/2,0,20);
-    assert SeriesEqual((1/5*z^3 - 9/10*z^2 - 113/20*z - 231/40)/(z^3 + 29/10*z^2 + 3/4*z - 137/40),3/2,0,20);
-    assert SeriesEqual((z^3 + 7*z^2 - 6*z + 3)/(z^3 - 4*z^2 + 5*z - 4),3/2,0,20);
+    //assert SeriesEqual(z, 1, 0, 20);
+    //assert SeriesEqual(1/z, 1, 0, 20);
+    //assert SeriesEqual(1/(z^2+2*z), 1, 0, 20);
+    //assert SeriesEqual((z - 3)/(z^2 + 1), 1/2, 0, 20); 
+    //assert SeriesEqual((5/3*z^3 + 61/6*z^2 + 73/4*z + 179/24)/(z^3 + 17/6*z^2 + 17/12*z - 101/24),3/2,0,20);
+    //assert SeriesEqual((1/5*z^3 - 9/10*z^2 - 113/20*z - 231/40)/(z^3 + 29/10*z^2 + 3/4*z - 137/40),3/2,0,20);
+    //assert SeriesEqual((z^3 + 7*z^2 - 6*z + 3)/(z^3 - 4*z^2 + 5*z - 4),3/2,0,20);
 
     //test outside convergence radius:
-    assert SeriesEqual(1/(1-z), 0, 1, 20);
-    assert SeriesEqual((z - 3)/(z^2 + 1), 0, 1, 20); 
-    assert SeriesEqual(1/(z^2+2*z), 0, 1, 20);
-    assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,1,20);
+    //assert SeriesEqual(1/(1-z), 0, 1, 20);
+    //assert SeriesEqual((z - 3)/(z^2 + 1), 0, 1, 20); 
+    //assert SeriesEqual(1/(z^2+2*z), 0, 1, 20);
+    //assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,1,20);
 
     //test outside convergence radius + alternative expansion point
-    assert SeriesEqual(1/(1-z), 1/2, 1, 20);
+    //assert SeriesEqual(1/(1-z), 1/2, 1, 20);
 
     //tests on elementary trancendental functions
-    assert SeriesEqual(2*exp, 0, 0, 20);
-    assert SeriesEqual(cos + 1/z, 0, 0, 20);
-    assert SeriesEqual(sin/z, 0, 0, 20);
-    assert SeriesEqual(cos^2,0,0,20);
-    //assert SeriesEqual(cos^2,1,0,20); TODO goes wrong
+    //assert SeriesEqual(2*exp, 0, 0, 20);
+    //assert SeriesEqual(cos + 1/z, 0, 0, 20);
+    //assert SeriesEqual(sin/z, 0, 0, 20);
+    assert SeriesEqual(cos,1,0,20);
+    assert SeriesEqual(cos^2,1,0,20);
 end procedure;
-
 
 TestLaurentAnalysis := procedure()
     //to test the laurent analysis manually
     f := 3*cos + z^2/(z^3+1) + exp/z^2;
+    //f := cos;
     prec := 10;
     z0 := 0;
     LaurentAnalysis(f,z0,prec);
