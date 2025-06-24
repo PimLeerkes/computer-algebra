@@ -1,46 +1,35 @@
-//representation of symbols:
+//global representations of symbols and fields:
+C := ComplexField(20);
 Q := Rationals();
 F<z,exp,cos,sin> := PolynomialRing(Q, 4);
 
 //calculating truncated elementary trancendental functions
-function exp_approx(p)
-    factorial := 1;
+function exp_approx(n)
     sum := 0;
-    for k in [0..p+3] do
-        if k gt 0 then
-            factorial *:= k;
-        end if;
-        sum +:= (z^k) / factorial;
+    for k in [0..n] do
+        sum +:= z^k / Factorial(k);
     end for;
     return sum;
 end function;
 
 function cos_approx(n)
     sum := 0;
-    for k in [0..n+3] do
-        exp := 2*k;
-        term := (-1)^k * z^exp / Factorial(exp);
-        sum +:= term;
+    for k in [0..n] do
+        sum +:= (-1)^k * z^(2*k) / Factorial(2*k);
     end for;
     return sum;
 end function;
 
 function sin_approx(n)
     sum := 0;
-    factorial := 1;
-    sign := 1;
-    for k in [0..n+3] do
-        if k gt 0 then factorial *:= k; end if;
-        if IsOdd(k) then
-            sum +:= sign * z^k / factorial;
-            sign *:= -1;
-        end if;
+    for k in [0..n] do
+        sum +:= (-1)^k * z^(2*k+1) / Factorial(2*k+1);
     end for;
     return sum;
 end function;
 
 function MyPartialFractionDecomposition(f)
-
+    //helper function to compute partial fraction decompositions of rational functions
     //First we need to determine the factorization of the denominator in order to know which field extensions are needed
     den_f := Factorisation(Denominator(f));
 
@@ -52,25 +41,19 @@ function MyPartialFractionDecomposition(f)
         end if;
     end for;
 
-    //we make the new function field
+    //we make the new function field and cast f to it
     if #extentions eq 0 then
         Q_ext := BaseRing(Parent(f));
     else
         Q_ext := SplittingField(extentions);
     end if;
-
     K<z> := RationalFunctionField(Q_ext);
+    new_f := K!f;
 
     //now we compute a partial fraction decomposition again over the extended field
-    new_f := K ! f;
     full_decomposition := PartialFractionDecomposition(new_f); 
 
-    seq := [];
-    for factor in full_decomposition do
-        Append(~seq, factor);
-    end for;
-
-    return seq;
+    return full_decomposition;
 end function;
 
 function MyBinomialExpansion(f, z0, domain, p)
@@ -92,7 +75,6 @@ function MyBinomialExpansion(f, z0, domain, p)
     root := Roots(denominator)[1][1];
 
     //to do comparisons with the root, we need to get an approximation
-    C := ComplexField(20);
     min_pol := MinimalPolynomial(root);
     root := Roots(min_pol, C)[1][1];
 
@@ -126,12 +108,11 @@ end function;
 
 function LaurentSeriesAroundPoint(f, z0, domain, p)
     //z0 needs to be a rational number
-    //f needs to be a rational function
+    //f needs to be a rational function (first truncate trancendental functions appropriately)
 
     //substitute t := z - z0 => z := t + z0
     K<t> := Parent(f);
     f_sub := Evaluate(f, t + z0);
-    //f_sub := Evaluate(f, e, exp_z(20));
 
     //if f is a polynomial, we are done immediately
     if Denominator(f) eq 1 then
@@ -200,7 +181,6 @@ end function;
 
 function TrancendentalTruncated(f,p)
     //to substitute symbols for trancendental functions by the truncated series
-    Q := Rationals();
     num := Numerator(f);
     den := Denominator(f);
     K := PolynomialRing(Q);
@@ -240,7 +220,6 @@ function DomainsAndSingularities(f,z0,p)
     //helper function to determine the different annulus domains and singularities of a given function
     //determine singularities
     den := Denominator(f);
-    C := ComplexField(20);
     singularities := Roots(den, C);
 
     //remove duplicates
