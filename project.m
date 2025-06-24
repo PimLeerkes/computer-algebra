@@ -17,14 +17,10 @@ end function;
 
 function cos_approx(n)
     sum := 0;
-    factorial := 1;
-    sign := 1;
     for k in [0..n+3] do
-        if k gt 0 then factorial *:= k; end if;
-        if IsEven(k) then
-            sum +:= sign * z^k / factorial;
-            sign *:= -1;
-        end if;
+        exp := 2*k;
+        term := (-1)^k * z^exp / Factorial(exp);
+        sum +:= term;
     end for;
     return sum;
 end function;
@@ -209,11 +205,11 @@ function TrancendentalTruncated(f,p)
     den := Denominator(f);
     K := PolynomialRing(Q);
     num_sub := Evaluate(num,exp,exp_approx(p));
-    num_sub := Evaluate(num,cos,cos_approx(p));
-    num_sub := Evaluate(num,sin,sin_approx(p));
+    num_sub := Evaluate(num_sub,cos,cos_approx(p));
+    num_sub := Evaluate(num_sub,sin,sin_approx(p));
     den_sub := Evaluate(den,exp,exp_approx(p));
-    den_sub := Evaluate(den,cos,cos_approx(p));
-    den_sub := Evaluate(den,sin,sin_approx(p));
+    den_sub := Evaluate(den_sub,cos,cos_approx(p));
+    den_sub := Evaluate(den_sub,sin,sin_approx(p));
 
     //because of typing issues we build new polynomials
     M := Monomials(den_sub);
@@ -325,7 +321,6 @@ end procedure;
 
 function SeriesEqual(f,z0,d,p) 
     //helper function to automatically test equality of our own implementation and magmas implementation
-    //testing on alternative domains would require a lot of extra code for the built in magma series so we will only test this manually
     f := TrancendentalTruncated(f,p);
     tup := DomainsAndSingularities(f,z0,p);
     domain := tup[1][d];
@@ -334,7 +329,7 @@ function SeriesEqual(f,z0,d,p)
     K<t> := Parent(f);
     Q := Rationals();
     L := LaurentSeriesRing(Q,p);
-    if d eq 1 then //naive but we don't check other cases
+    if d eq 1 then //naive but we don't check other cases (requires essentially too much of the same code specifically for the magma version)
         f_sub := Evaluate(f, t + z0);
         f_sub := Evaluate(f_sub, 1/t);
         magma_series := L ! f_sub;
@@ -361,27 +356,21 @@ function SeriesEqual(f,z0,d,p)
 
         if term_equal then
             return true;
-        else
-            //we print both series in case of inequality (for debugging)
-            print(magma_series_list);
-            for exp in Keys(my_series) do
-                print "exponent:", exp, "coefficient:", my_series[exp];
-            end for;
-            return false;
         end if;
     end for;
+    //we print both series in case of inequality (for debugging)
     print(magma_series_list);
-    print(my_series);
+    for exp in Keys(my_series) do
+        print "exponent:", exp, "coefficient:", my_series[exp];
+    end for;
     return false;
 end function;
 
 /////////////////////////////////////// Testing ////////////////////////////////////////////////
 
 function RandomPolynomial(d, N)
-    Q := Rationals();
-    R<z> := PolynomialRing(Q);
     coeffs := [Random([-N..N]) : i in [0..d]];
-    return R ! coeffs;
+    return F ! coeffs;
 end function;
 
 function RandomRationalFunction(degP, degQ, N)
@@ -393,11 +382,8 @@ function RandomRationalFunction(degP, degQ, N)
     return p / q;
 end function;
 
-
 TestLaurentSeriesAroundPoint := procedure()
-    //to test the laurent series around point function automatically for a list of rational functions
-    //Q := Rationals();
-    //K<z> := RationalFunctionField(Q);
+    //to test the laurent series around point function automatically for a lot of different cases
 
     //tests around 0
     assert SeriesEqual(1/(1-z), 0, 0, 20);
@@ -407,19 +393,13 @@ TestLaurentSeriesAroundPoint := procedure()
     assert SeriesEqual(1/z^3, 0, 0, 20); 
     assert SeriesEqual(1/(z^2+2*z), 0, 0, 20);
     assert SeriesEqual(z^3 + 2*z^2 + z + 4, 0, 0, 20);
+    assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,0,20);
 
     //tests around a different point than 0
     assert SeriesEqual(z, 1, 0, 20);
     assert SeriesEqual(1/z, 1, 0, 20);
     assert SeriesEqual(1/(z^2+2*z), 1, 0, 20);
     assert SeriesEqual((z - 3)/(z^2 + 1), 1/2, 0, 20); 
-
-    //test on a random larger rational function 
-    //F := RandomRationalFunction(3,3,10);
-    //assert SeriesEqual(F,0,0,20);
-    //assert SeriesEqual(F,3/2,0,20);
-    //three cases that were problematic
-    assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,0,20);
     assert SeriesEqual((5/3*z^3 + 61/6*z^2 + 73/4*z + 179/24)/(z^3 + 17/6*z^2 + 17/12*z - 101/24),3/2,0,20);
     assert SeriesEqual((1/5*z^3 - 9/10*z^2 - 113/20*z - 231/40)/(z^3 + 29/10*z^2 + 3/4*z - 137/40),3/2,0,20);
     assert SeriesEqual((z^3 + 7*z^2 - 6*z + 3)/(z^3 - 4*z^2 + 5*z - 4),3/2,0,20);
@@ -430,28 +410,28 @@ TestLaurentSeriesAroundPoint := procedure()
     assert SeriesEqual(1/(z^2+2*z), 0, 1, 20);
     assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,1,20);
 
-    //test outside convergence radius + alternative expansion point:
+    //test outside convergence radius + alternative expansion point
     assert SeriesEqual(1/(1-z), 1/2, 1, 20);
 
     //tests on elementary trancendental functions
-    assert SeriesEqual(2*exp, 0, 0, 20);//TODO do exp_z with symbol and later convert based on chosen precision + 3 or something
+    assert SeriesEqual(2*exp, 0, 0, 20);
     assert SeriesEqual(cos + 1/z, 0, 0, 20);
     assert SeriesEqual(sin/z, 0, 0, 20);
+    assert SeriesEqual(cos^2,0,0,20);
+    //assert SeriesEqual(cos^2,1,0,20); TODO goes wrong
 end procedure;
 
 
 TestLaurentAnalysis := procedure()
-    //to test the whole laurent analysis manually
-    //f := -(z + z^2/2 + z^3/6 + z^4/24 + z^5/120 + z^6/720 + z^7/5040 + z^8/40320 + z^9/362880 + z^10/3628800 + z^11/39916800);
-    f := sin + z^2 + cos/z^3;
-    prec := 20;
+    //to test the laurent analysis manually
+    f := 3*cos + z^2/(z^3+1) + exp/z^2;
+    prec := 10;
     z0 := 0;
-    LaurentAnalysis(f,z0,prec); //TODO test with trancendental function
+    LaurentAnalysis(f,z0,prec);
 end procedure;
 
-//To test the performance
-
 TestLaurentPerformance :=  procedure() 
+    //To test the performance
     F := RandomRationalFunction(10,2,5);
     Q := Rationals();
     K<z> := RationalFunctionField(Q);
