@@ -1,7 +1,7 @@
 //global representations of symbols and fields:
 C := ComplexField(20);
-Q := Rationals();
-F<z,exp,cos,sin> := PolynomialRing(Q, 4);
+Q := Rationals(); //TODO finite fields?
+F<z,exp,cos,sin> := PolynomialRing(Q, 4); //TODO generate random polynomials of this form
 
 //calculating truncated elementary trancendental functions
 function exp_approx(n)
@@ -32,6 +32,7 @@ function MyPartialFractionDecomposition(f)
     //helper function to compute partial fraction decompositions of rational functions
     //First we need to determine the factorization of the denominator in order to know which field extensions are needed
     den_f := Factorisation(Denominator(f));
+    print("hier kom ik wel...");
 
     //We check the field extentions
     extentions := [];
@@ -116,13 +117,11 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
     //if f is a polynomial, we are done immediately
     if Denominator(f) eq 1 then
         R := PolynomialRing(Rationals());
-        f := R!f;
+        f_sub := R!f_sub;
         laurent_expansion := AssociativeArray(Integers());
-        for i in [0..Min(p,Degree(f))] do
-            coeff := Coefficient(f, i);
-            if coeff ne 0 then
-                laurent_expansion[i] := coeff;
-            end if;
+        for i in [0..Min(p,Degree(f_sub))] do
+            coeff := Coefficient(f_sub, i);
+            laurent_expansion[i] := coeff;
         end for;
         return laurent_expansion;
     end if;
@@ -267,7 +266,7 @@ end function;
 
 //the main function of this project. prints all the relevent information about the laurent/taylorexpansion of a given rational function
 LaurentAnalysis := procedure(f, z0, p);
-    printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(f), z0; //TODO pretty print this function properly
+    printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(f), z0;
 
     //if our function contains trancendental components, we need to replace them with a sufficiently truncated series to approximate it
     //f := Approximate(f);
@@ -276,6 +275,7 @@ LaurentAnalysis := procedure(f, z0, p);
     domains := tup[1];
     singularities := tup[2];
 
+    //TODO tell user if singularity is removable or essential
     print("\nApproximate singularities: ");
     punctured := false;
     for s in singularities do
@@ -358,73 +358,69 @@ end function;
 
 /////////////////////////////////////// Testing ////////////////////////////////////////////////
 
-function RandomPolynomial(d, N)
-    coeffs := [Random([-N..N]) : i in [0..d]];
-    return F ! coeffs;
-end function;
-
-function RandomRationalFunction(degP, degQ, N)
-    p := RandomPolynomial(degP, N);
-    q := RandomPolynomial(degQ, N);
-    while q eq 0 do
-        q := RandomPolynomial(degQ, N);
-    end while;
-    return p / q;
-end function;
-
 TestLaurentSeriesAroundPoint := procedure()
     //to test the laurent series around point function automatically for a lot of different cases
 
     //tests around 0
-    //assert SeriesEqual(1/(1-z), 0, 0, 20);
-    //assert SeriesEqual(1/(1-z)^2, 0, 0, 20);
-    //assert SeriesEqual(1/z, 0, 0, 20);
-    //assert SeriesEqual((z - 3)/(z^2 + 1), 0, 0, 20); 
-    //assert SeriesEqual(1/z^3, 0, 0, 20); 
-    //assert SeriesEqual(1/(z^2+2*z), 0, 0, 20);
-    //assert SeriesEqual(z^3 + 2*z^2 + z + 4, 0, 0, 20);
-    //assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,0,20);
+    assert SeriesEqual(1/(1-z), 0, 0, 20);
+    assert SeriesEqual(1/(1-z)^2, 0, 0, 20);
+    assert SeriesEqual(1/z, 0, 0, 20);
+    assert SeriesEqual((z - 3)/(z^2 + 1), 0, 0, 20); 
+    assert SeriesEqual(1/z^3, 0, 0, 20); 
+    assert SeriesEqual(1/(z^2+2*z), 0, 0, 20);
+    assert SeriesEqual(z^3 + 2*z^2 + z + 4, 0, 0, 20);
+    assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,0,20);
 
     //tests around a different point than 0
-    //assert SeriesEqual(z, 1, 0, 20);
-    //assert SeriesEqual(1/z, 1, 0, 20);
-    //assert SeriesEqual(1/(z^2+2*z), 1, 0, 20);
-    //assert SeriesEqual((z - 3)/(z^2 + 1), 1/2, 0, 20); 
-    //assert SeriesEqual((5/3*z^3 + 61/6*z^2 + 73/4*z + 179/24)/(z^3 + 17/6*z^2 + 17/12*z - 101/24),3/2,0,20);
-    //assert SeriesEqual((1/5*z^3 - 9/10*z^2 - 113/20*z - 231/40)/(z^3 + 29/10*z^2 + 3/4*z - 137/40),3/2,0,20);
-    //assert SeriesEqual((z^3 + 7*z^2 - 6*z + 3)/(z^3 - 4*z^2 + 5*z - 4),3/2,0,20);
+    assert SeriesEqual(z, 1, 0, 20);
+    assert SeriesEqual(1/z, 1, 0, 20);
+    assert SeriesEqual(1/(z^2+2*z), 1, 0, 20);
+    assert SeriesEqual((z - 3)/(z^2 + 1), 1/2, 0, 20); 
+    assert SeriesEqual((5/3*z^3 + 61/6*z^2 + 73/4*z + 179/24)/(z^3 + 17/6*z^2 + 17/12*z - 101/24),3/2,0,20);
+    assert SeriesEqual((1/5*z^3 - 9/10*z^2 - 113/20*z - 231/40)/(z^3 + 29/10*z^2 + 3/4*z - 137/40),3/2,0,20);
+    assert SeriesEqual((z^3 + 7*z^2 - 6*z + 3)/(z^3 - 4*z^2 + 5*z - 4),3/2,0,20);
 
     //test outside convergence radius:
-    //assert SeriesEqual(1/(1-z), 0, 1, 20);
-    //assert SeriesEqual((z - 3)/(z^2 + 1), 0, 1, 20); 
-    //assert SeriesEqual(1/(z^2+2*z), 0, 1, 20);
-    //assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,1,20);
+    assert SeriesEqual(1/(1-z), 0, 1, 20);
+    assert SeriesEqual((z - 3)/(z^2 + 1), 0, 1, 20); 
+    assert SeriesEqual(1/(z^2+2*z), 0, 1, 20);
+    assert SeriesEqual((4/9*z^3 - 8/9*z^2 + 4/9*z - 2/9)/(z^2 + 1/9*z + 8/9),0,1,20);
 
     //test outside convergence radius + alternative expansion point
-    //assert SeriesEqual(1/(1-z), 1/2, 1, 20);
+    assert SeriesEqual(1/(1-z), 1/2, 1, 20);
 
     //tests on elementary trancendental functions
-    //assert SeriesEqual(2*exp, 0, 0, 20);
-    //assert SeriesEqual(cos + 1/z, 0, 0, 20);
-    //assert SeriesEqual(sin/z, 0, 0, 20);
+    assert SeriesEqual(2*exp, 0, 0, 20);
+    assert SeriesEqual(cos + 1/z, 0, 0, 20);
+    assert SeriesEqual(sin/z, 0, 0, 20);
     assert SeriesEqual(cos,1,0,20);
     assert SeriesEqual(cos^2,1,0,20);
+    assert SeriesEqual(cos*sin + exp*cos^2 + (z+cos)/(z^2+2),2,0,20);
 end procedure;
 
 TestLaurentAnalysis := procedure()
     //to test the laurent analysis manually
-    f := 3*cos + z^2/(z^3+1) + exp/z^2;
-    //f := cos;
+    //f := 3*cos + z^2/(z^3+1) + exp/z^2;
+    f := cos;
     prec := 10;
-    z0 := 0;
+    z0 := 1;
     LaurentAnalysis(f,z0,prec);
 end procedure;
 
 TestLaurentPerformance :=  procedure() 
     //To test the performance
-    F := RandomRationalFunction(10,2,5);
-    Q := Rationals();
-    K<z> := RationalFunctionField(Q);
-    time LaurentAnalysis(F,0,5);
+    K<w> := RationalFunctionField(Rationals());
+    f := (w^3 + 7*w^2 - 6*w + 3)/(w^5 - w + 4);
+    print PartialFractionDecomposition(f);
+    //f := (z^3 + 7*z^2 - 6*z + 3)/(z^5 - z + 4);
+
+    //print Factorisation(Denominator(f));
+    Q_ext := SplittingField(Denominator(f));
+    print "hier loop ik vaast";
+    K<x> := RationalFunctionField(Q_ext);
+    print "het einde";
+    new_f := K!f;
+    print PartialFractionDecomposition(new_f);
+    //time LaurentAnalysis(f,0,50);
 end procedure;
 //full laurent analysis on a degree 5 rational function has average time of: 52.840 s
