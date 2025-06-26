@@ -2,7 +2,7 @@
 C := ComplexField(20);
 inf := C!1e20;
 Q := Rationals();
-F<z,exp,cos,sin,log1p> := PolynomialRing(Q, 5); 
+F<z,exp,cos,sin,log1p> := PolynomialRing(Q, 5); //log1p stands for log(1+z)
 
 //calculating truncated elementary trancendental functions
 function exp_approx(n)
@@ -29,7 +29,7 @@ function sin_approx(n)
     return sum;
 end function;
 
-function log1p_approx(n)
+function log1p_approx(n) //stands for log(1+z)
     sum := 0;
     for k in [1..n+3] do
         sum +:= ((-1)^(k+1)) * z^k / k;
@@ -38,7 +38,8 @@ function log1p_approx(n)
 end function;
 
 function MyPartialFractionDecomposition(f)
-    //helper function to compute partial fraction decompositions of rational functions
+    //Helper function to compute partial fraction decompositions of rational functions
+
     //First we need to determine the factorization of the denominator in order to know which field extensions are needed
     den_f := Factorisation(Denominator(f));
 
@@ -66,6 +67,9 @@ function MyPartialFractionDecomposition(f)
 end function;
 
 function MyBinomialExpansion(f, z0, domain, p)
+    //function that for a given resulting component of MyPartialFractionDecomposition(), expands it into a series using
+    //the generalized binomial theorem. We return this series as a sequence of tuples <coefficient,exponent>
+
     //we need the following values
     numerator := f[3];
     denominator := f[1];
@@ -75,6 +79,7 @@ function MyBinomialExpansion(f, z0, domain, p)
 
     //if we only have a numerator we are done immediately
     if denominator eq 1 then
+        //we simply return the numerator as a sequence
         x := Coefficient(numerator,0);
         y := Coefficient(numerator,1);
         terms := [<x,0>,<y,1>];
@@ -86,47 +91,45 @@ function MyBinomialExpansion(f, z0, domain, p)
     min_pol := MinimalPolynomial(root);
     root := Roots(min_pol, C)[1][1];
 
-    geom := [];
-    if Abs(root-z0) gt Abs(domain[1]-z0) then 
-        if b ne 0 then
+    //we build the series expansion
+    series := [];
+    if b ne 0 then
+        //we distinguish between two cases: either the first singularity of the domain is closer to z0 than the root of the current component, or not
+        //in both cases the series should be different in order to converge in the domain
+        if Abs(root-z0) gt Abs(domain[1]-z0) then 
             c := -a / b;
 
             for i in [0..p] do
-                Append(~geom, <c^i * 1/b^n * numerator * Binomial(n + i - 1, i),i>);
+                Append(~series, <c^i * 1/b^n * numerator * Binomial(n + i - 1, i),i>);
             end for;
-        else
-            //if b is 0 we are in the trivial case
-            geom := [<numerator/a,-n>];
-        end if;
-    elif Abs(root-z0) le Abs(domain[1]-z0) then 
-        if b ne 0 then
+        else 
             c := -b / a;
 
             for i in [0..p] do
-                Append(~geom, <c^i * 1/a^n * numerator * Binomial(n + i - 1, i),-n-i>);
+                Append(~series, <c^i * 1/a^n * numerator * Binomial(n + i - 1, i),-n-i>);
             end for;
-        else
-            //if b is 0 we are in the trivial case
-            geom := [<numerator/a,-n>];
         end if;
+    else
+        //if b is 0 we are in the trivial case
+        series := [<numerator/a,-n>];
     end if;
 
-    return geom;
+    return series;
 end function;
 
 function LaurentSeriesAroundPoint(f, z0, domain, p)
-    //z0 needs to be a rational number
-    //f needs to be a rational function (first truncate trancendental functions appropriately)
+    //function that given a rational function, rational number, domain and precision, computes the laurent series around the point z0 on the domain truncated at the pth term
 
-    //substitute t := z - z0 => z := t + z0
+    //we must first substitute t := z - z0 => z := t + z0
     K<t> := Parent(f);
     f_sub := Evaluate(f, t + z0);
 
-    //if f is a polynomial, we are done immediately
+    //if f is a polynomial, we are done immediately and we return the function itself, which is a taylor series
     if Denominator(f) eq 1 then
         R := PolynomialRing(Rationals());
         f_sub := R!f_sub;
         laurent_expansion := AssociativeArray(Integers());
+
         //we have to truncate it properly
         for i in [0..Min(p,Degree(f_sub))] do
             coeff := Coefficient(f_sub, i);
@@ -135,10 +138,12 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
         return laurent_expansion;
     end if;
     
-    //we first need to calculate the partial fraction decomposition (where all denominators are linear (to a power))
+    //we first need to calculate the full partial fraction decomposition such that all
+    //denominators look like (ax+b)^n
     decomposition := MyPartialFractionDecomposition(f_sub);
 
     //for each part in the decomposition we determine the series and add them together
+    //to the laurent expansion
     laurent_expansion := AssociativeArray(Integers());
     for component in decomposition do
         //we must first convert the function to a series (using binomial theorem)
@@ -156,6 +161,8 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
                     break;
                 end if;
             end for;
+            
+            //if the exponent is not in the array we must initialize it
             if exponent_in_array eq false then
                 laurent_expansion[b_term[2]] := b_term[1];
             end if;
@@ -166,36 +173,35 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
     return laurent_expansion;
 end function;
 
-function PrettyLaurentSeries(laurent_series, z0, p)
-    //pretty printer for laurent series
-    F<z> := RationalFunctionField(Rationals());
+function PrettySeries(series, z0, p)
+    //pretty printer for laurent/taylor series
     terms := [];
-    for exp in Sort(SetToSequence(Keys(laurent_series))) do
-        coeff := laurent_series[exp];
+    for exp in Sort(SetToSequence(Keys(series))) do
+        coeff := series[exp];
         if coeff ne 0 then
             if z0 eq 0 then
                 if exp eq 0 then
                     Append(~terms, Sprint(coeff));
                 elif exp eq 1 then
-                    Append(~terms, Sprint(coeff) * "*" * Sprint(z));
+                    Append(~terms, Sprint(coeff) * "*z");
                 else
-                    Append(~terms, Sprint(coeff) * "*" * Sprint(z) * "^" * Sprint(exp));
+                    Append(~terms, Sprint(coeff) * "*z^" * Sprint(exp));
                 end if;
             else 
                 if exp eq 0 then
                     Append(~terms, Sprint(coeff));
                 elif exp eq 1 then
-                    Append(~terms, Sprint(coeff) * "*(" * Sprint(z) * " - " * Sprint(z0) * ")");
+                    Append(~terms, Sprint(coeff) * "*(z - " * Sprint(z0) * ")");
                 else
-                    Append(~terms, Sprint(coeff) * "*(" * Sprint(z) * " - " * Sprint(z0) * ")^" * Sprint(exp));
+                    Append(~terms, Sprint(coeff) * "*(z - " * Sprint(z0) * ")^" * Sprint(exp));
                 end if;
             end if;
         end if;
     end for;
     if z0 eq 0 then
-        o_term := "O(" * Sprint(z) * "^" * Sprint(p+1) * ")";
+        o_term := "O(z^" * Sprint(p+1) * ")";
     else
-        o_term := "O((" * Sprint(z) * " - " * Sprint(z0) * ")^" * Sprint(p+1) * ")";
+        o_term := "O((z - " * Sprint(z0) * ")^" * Sprint(p+1) * ")";
     end if;
     Append(~terms, o_term);
 
@@ -203,8 +209,9 @@ function PrettyLaurentSeries(laurent_series, z0, p)
 end function;
 
 function TranscendentalTruncated(num,den,p)
-    //to substitute symbols for transcendental functions by the truncated series
-    K := PolynomialRing(Q);
+    //function to substitute symbols for transcendental functions by the truncated series
+
+    //we first make sthe substitutions in the numerator and denominator seperately
     num_sub := Evaluate(num,exp,exp_approx(p));
     num_sub := Evaluate(num_sub,cos,cos_approx(p));
     num_sub := Evaluate(num_sub,sin,sin_approx(p));
@@ -215,35 +222,40 @@ function TranscendentalTruncated(num,den,p)
     den_sub := Evaluate(den_sub,log1p,log1p_approx(p));
 
     //because of typing issues we build a new numerator and denominator from scratch
-    M := Monomials(den_sub);
-    C := Coefficients(den_sub);
-    p := K!0;
-    for i in [1..#M] do
-        mon := M[i];
-        coeff := C[i];
-        exps := Exponents(mon);
-        p +:= K!coeff * (K.1)^exps[1];
-    end for;
+    K := PolynomialRing(Q);
 
+    //the numerator
     M := Monomials(num_sub);
     C := Coefficients(num_sub);
-    q := K!0;
+    new_num := K!0;
     for i in [1..#M] do
         mon := M[i];
         coeff := C[i];
         exps := Exponents(mon);
-        q +:= K!coeff * (K.1)^exps[1];
+        new_num +:= K!coeff * (K.1)^exps[1];
     end for;
 
-    return <q,p>;
+    //the denominator
+    M := Monomials(den_sub);
+    C := Coefficients(den_sub);
+    new_den := K!0;
+    for i in [1..#M] do
+        mon := M[i];
+        coeff := C[i];
+        exps := Exponents(mon);
+        new_den +:= K!coeff * (K.1)^exps[1];
+    end for;
+
+    return <new_num,new_den>;
 end function;
 
 function DomainsAndSingularities(num,den,z0,p)
     //helper function to determine the different annulus domains and singularities of a given function
-    //determine singularities
+
+    //we first determine the approximate singularities
     singularities := Roots(den, C);
 
-    //remove duplicates
+    //we remove duplicates, i.e., we don't want multiple singularities with equal distance to z0
     sing_no_dup := [];
     for s in singularities do
         duplicate := false;
@@ -257,8 +269,10 @@ function DomainsAndSingularities(num,den,z0,p)
         end if;
     end for;
 
-    //make the domainmap
+    //we sort the singularities
     sorted_singularities := Sort(sing_no_dup, func<a, b | Abs(a[1] - z0) - Abs(b[1] - z0)>);
+
+    //we add z0 at the beginning, infinity at the end and we again make sure we don't add z0 twice
     bounds := [C!z0];
     for s in sorted_singularities do
         if not s[1] in bounds then
@@ -267,26 +281,33 @@ function DomainsAndSingularities(num,den,z0,p)
     end for;
     Append(~bounds,inf);
 
-    DomainMap := AssociativeArray(Integers());
+    //we make the associative array with keys in ascending order
+    domains := AssociativeArray(Integers());
     for i in [0..#bounds-2] do
-        DomainMap[i] := <bounds[i+1], bounds[i+2]>; 
+        domains[i] := <bounds[i+1], bounds[i+2]>; 
     end for;
 
-    return <DomainMap,singularities>;
+    return <domains,singularities>;
 end function;
 
-//the main function of this project. prints all the relevent information about the laurent/taylorexpansion of a given function 
+
 LaurentAnalysis := procedure(num, den, z0, p);
+    //the main function of this project. prints all the relevent information about the laurent/taylorexpansion of a given function 
+
+    //we print a welcome message first
     printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, "(" * Sprint(num) * ")/(" * Sprint(den) * ")", z0;
 
     //if our function contains trancendental components, we need to replace them with a sufficiently truncated series to approximate it
     f := TranscendentalTruncated(num,den,p);
+
+    //we need to obtain the singularities (to print them) and the domains (to determine the power series for)
     new_num := f[1];
     new_den := f[2];
     tup := DomainsAndSingularities(new_num,new_den,z0,p);
     domains := tup[1];
     singularities := tup[2];
 
+    //we print the relevant information on the singularities
     print("\nApproximate singularities: ");
     for s in singularities do
         if Evaluate(new_den,s[1]) eq 0 and Evaluate(new_num,s[1]) eq 0 then
@@ -300,17 +321,19 @@ LaurentAnalysis := procedure(num, den, z0, p);
         print "essential singularity at: infinity\n";
     end if;
 
-    //now we determine the laurent series for each domain
+    //now we determine the laurent/taylor series around z0 for each domain
     for d in Keys(domains) do
         laurent_series := LaurentSeriesAroundPoint(new_num/new_den,z0,domains[d],p);
 
+        //we also make it explicit whether the series is a taylor or a laurent series
         type_series := "taylor";
         if #singularities gt 0 then
             type_series := "laurent";
         end if;
         printf "\nThe %o series around %o on domain %o is: \n",type_series, z0, domains[d];
-        print(PrettyLaurentSeries(laurent_series,z0,p));
+        print(PrettySeries(laurent_series,z0,p));
 
+        //we print the residue
         non_zero := true;
         for exp in Keys(laurent_series) do
             if exp eq -1 then
@@ -326,27 +349,31 @@ end procedure;
 
 function SeriesEqual(f,z0,d,p) 
     //helper function to automatically test equality of our own implementation and magmas implementation
+
+    //we first need to get the following values and function transformations
     f := TranscendentalTruncated(Numerator(f),Denominator(f),p);
     tup := DomainsAndSingularities(f[1],f[2],z0,p);
     domain := tup[1][d];
-
-    //we first compute the magma laurent series around the point
     f := f[1]/f[2];
     K<t> := Parent(f);
     Q := Rationals();
     L := LaurentSeriesRing(Q,p);
-    if d eq 1 then //naive but we don't check other cases (requires essentially too much of the same code specifically for the magma version)
+
+    //naive if statement, but we don't check any other cases than the first domain and the last domain
+    if d gt 0 then
+        //case where we check the series around infinity 
         f_sub := Evaluate(f, t + z0);
         f_sub := Evaluate(f_sub, 1/t);
         magma_series := L ! f_sub;
         magma_series_list := [<Coefficient(magma_series, i),-i> : i in [-p/2..p/2]];
     else
+        //case where we compute the series inside the first convergence radius around z0
         f_sub := Evaluate(f, t + z0);
         magma_series := L ! f_sub;
         magma_series_list := [<Coefficient(magma_series, i),i> : i in [-p/2..p/2]];
     end if;
 
-    //we then compute our own series
+    //we then compute the series using our own implementation
     my_series := LaurentSeriesAroundPoint(f, z0, domain, p);
 
     //we compare the coefficients
@@ -364,6 +391,7 @@ function SeriesEqual(f,z0,d,p)
             return true;
         end if;
     end for;
+
     //we print both series in case of inequality (for debugging)
     print(magma_series_list);
     for exp in Keys(my_series) do
@@ -418,8 +446,8 @@ end procedure;
 TestLaurentAnalysis := procedure()
     //to test the laurent analysis manually
     //f := 3*cos + z^2/(z^3+1) + exp/z^2;
-    f := sin/z;
-    //f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
+    //f := sin/z;
+    f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
     prec := 5;
     z0 := 0;
     den := Denominator(f);
