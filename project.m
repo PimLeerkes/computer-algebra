@@ -2,7 +2,7 @@
 C := ComplexField(20);
 inf := C!1e20;
 Q := Rationals();
-F<z,exp,cos,sin,log1p> := PolynomialRing(Q, 5); //TODO generate random polynomials of this form
+F<z,exp,cos,sin,log1p> := PolynomialRing(Q, 5); 
 
 //calculating truncated elementary trancendental functions
 function exp_approx(n)
@@ -192,16 +192,18 @@ function PrettyLaurentSeries(laurent_series, z0, p)
             end if;
         end if;
     end for;
-    o_term := "O((" * Sprint(z) * " - " * Sprint(z0) * ")^" * Sprint(p+1) * ")";
+    if z0 eq 0 then
+        o_term := "O(" * Sprint(z) * "^" * Sprint(p+1) * ")";
+    else
+        o_term := "O((" * Sprint(z) * " - " * Sprint(z0) * ")^" * Sprint(p+1) * ")";
+    end if;
     Append(~terms, o_term);
 
     return Join(terms, " + ");
 end function;
 
-function TranscendentalTruncated(f,p)
+function TranscendentalTruncated(num,den,p)
     //to substitute symbols for transcendental functions by the truncated series
-    num := Numerator(f);
-    den := Denominator(f);
     K := PolynomialRing(Q);
     num_sub := Evaluate(num,exp,exp_approx(p));
     num_sub := Evaluate(num_sub,cos,cos_approx(p));
@@ -233,14 +235,12 @@ function TranscendentalTruncated(f,p)
         q +:= K!coeff * (K.1)^exps[1];
     end for;
 
-    f := q/p;
-    return f;
+    return <q,p>;
 end function;
 
-function DomainsAndSingularities(f,z0,p)
+function DomainsAndSingularities(num,den,z0,p)
     //helper function to determine the different annulus domains and singularities of a given function
     //determine singularities
-    den := Denominator(f);
     singularities := Roots(den, C);
 
     //remove duplicates
@@ -276,31 +276,33 @@ function DomainsAndSingularities(f,z0,p)
 end function;
 
 //the main function of this project. prints all the relevent information about the laurent/taylorexpansion of a given function 
-LaurentAnalysis := procedure(f, z0, p);
-    printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(f), z0;
+LaurentAnalysis := procedure(num, den, z0, p);
+    printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, "(" * Sprint(num) * ")/(" * Sprint(den) * ")", z0;
 
     //if our function contains trancendental components, we need to replace them with a sufficiently truncated series to approximate it
-    f := TranscendentalTruncated(f,p);
-    print(f);
-    tup := DomainsAndSingularities(f,z0,p);
+    f := TranscendentalTruncated(num,den,p);
+    new_num := f[1];
+    new_den := f[2];
+    tup := DomainsAndSingularities(new_num,new_den,z0,p);
     domains := tup[1];
     singularities := tup[2];
 
     print("\nApproximate singularities: ");
-
-    den := Denominator(f);
-    num := Numerator(f);
     for s in singularities do
-        if Evaluate(den,s[1]) eq 0 and Evaluate(num,s[1]) eq 0 then
-            printf "removable singularity: %o at: %o\n", s[2], s[1];
+        if Evaluate(new_den,s[1]) eq 0 and Evaluate(new_num,s[1]) eq 0 then
+            printf "removable singularity at: %o\n", s[2], s[1];
         else
             printf "pole of order: %o at: %o\n", s[2], s[1];
         end if;
     end for;
+    contains_transcendental := exists{i : i in [2..5] | Degree(num, i) ne 0};
+    if contains_transcendental then
+        print "essential singularity at: infinity\n";
+    end if;
 
     //now we determine the laurent series for each domain
     for d in Keys(domains) do
-        laurent_series := LaurentSeriesAroundPoint(f,z0,domains[d],p);
+        laurent_series := LaurentSeriesAroundPoint(new_num/new_den,z0,domains[d],p);
 
         type_series := "taylor";
         if #singularities gt 0 then
@@ -324,11 +326,12 @@ end procedure;
 
 function SeriesEqual(f,z0,d,p) 
     //helper function to automatically test equality of our own implementation and magmas implementation
-    f := TranscendentalTruncated(f,p);
-    tup := DomainsAndSingularities(f,z0,p);
+    f := TranscendentalTruncated(Numerator(f),Denominator(f),p);
+    tup := DomainsAndSingularities(f[1],f[2],z0,p);
     domain := tup[1][d];
 
     //we first compute the magma laurent series around the point
+    f := f[1]/f[2];
     K<t> := Parent(f);
     Q := Rationals();
     L := LaurentSeriesRing(Q,p);
@@ -416,11 +419,12 @@ TestLaurentAnalysis := procedure()
     //to test the laurent analysis manually
     //f := 3*cos + z^2/(z^3+1) + exp/z^2;
     f := sin/z;
+    //f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
     prec := 5;
     z0 := 0;
     den := Denominator(f);
     num := Numerator(f);
-    LaurentAnalysis(f,z0,prec);
+    LaurentAnalysis(num,den,z0,prec);
 end procedure;
 
 TestLaurentPerformance :=  procedure() 
