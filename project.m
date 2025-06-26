@@ -32,7 +32,6 @@ function MyPartialFractionDecomposition(f)
     //helper function to compute partial fraction decompositions of rational functions
     //First we need to determine the factorization of the denominator in order to know which field extensions are needed
     den_f := Factorisation(Denominator(f));
-    print("hier kom ik wel...");
 
     //We check the field extentions
     extentions := [];
@@ -157,7 +156,7 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
     return laurent_expansion;
 end function;
 
-function PrettyLaurentSeries(laurent_series, z0, p) //TODO don't print brackets if z = 0
+function PrettyLaurentSeries(laurent_series, z0, p)
     //pretty printer for laurent series
     F<z> := RationalFunctionField(Rationals());
     terms := [];
@@ -184,13 +183,13 @@ function PrettyLaurentSeries(laurent_series, z0, p) //TODO don't print brackets 
         end if;
     end for;
     o_term := "O((" * Sprint(z) * " - " * Sprint(z0) * ")^" * Sprint(p+1) * ")";
-    Append(~terms, o_term); //TODO only print O if we cut off the series 
+    Append(~terms, o_term);
 
     return Join(terms, " + ");
 end function;
 
 function TranscendentalTruncated(f,p)
-    //to substitute symbols for trancendental functions by the truncated series
+    //to substitute symbols for transcendental functions by the truncated series
     num := Numerator(f);
     den := Denominator(f);
     K := PolynomialRing(Q);
@@ -264,9 +263,9 @@ function DomainsAndSingularities(f,z0,p)
     return <DomainMap,singularities>;
 end function;
 
-//the main function of this project. prints all the relevent information about the laurent/taylorexpansion of a given rational function
+//the main function of this project. prints all the relevent information about the laurent/taylorexpansion of a given function 
 LaurentAnalysis := procedure(f, z0, p);
-    printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(f), z0;
+    //printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(f), z0;
 
     //if our function contains trancendental components, we need to replace them with a sufficiently truncated series to approximate it
     //f := Approximate(f);
@@ -276,10 +275,10 @@ LaurentAnalysis := procedure(f, z0, p);
     singularities := tup[2];
 
     //TODO tell user if singularity is removable or essential
-    print("\nApproximate singularities: ");
+    //print("\nApproximate singularities: ");
     punctured := false;
     for s in singularities do
-        printf "pole of order: %o at: %o\n", s[2], s[1];
+        //printf "pole of order: %o at: %o\n", s[2], s[1];
         if s[1] eq z0 then
             punctured := true;
         end if;
@@ -293,18 +292,18 @@ LaurentAnalysis := procedure(f, z0, p);
         if #singularities gt 0 then
             type_series := "laurent";
         end if;
-        printf "\nThe %o series around %o on domain %o is: ",type_series, z0, d; //TODO tell user if it is taylor or laurent
-        print(PrettyLaurentSeries(laurent_series,z0,p));
+        //printf "\nThe %o series around %o on domain %o is: \n",type_series, z0, domains[d];
+        //print(PrettyLaurentSeries(laurent_series,z0,p));
 
         non_zero := true;
         for exp in Keys(laurent_series) do
             if exp eq -1 then
                 non_zero := false;
-                printf "\nThe residue is: %o\n", laurent_series[exp];
+                //printf "\nThe residue is: %o\n", laurent_series[exp];
             end if;
         end for;
         if non_zero then
-            printf "\nThe residue is: %o\n", 0;
+            //printf "\nThe residue is: %o\n", 0;
         end if;
     end for;
 end procedure;
@@ -389,7 +388,7 @@ TestLaurentSeriesAroundPoint := procedure()
     //test outside convergence radius + alternative expansion point
     assert SeriesEqual(1/(1-z), 1/2, 1, 20);
 
-    //tests on elementary trancendental functions
+    //tests on elementary transcendental functions
     assert SeriesEqual(2*exp, 0, 0, 20);
     assert SeriesEqual(cos + 1/z, 0, 0, 20);
     assert SeriesEqual(sin/z, 0, 0, 20);
@@ -409,18 +408,12 @@ end procedure;
 
 TestLaurentPerformance :=  procedure() 
     //To test the performance
-    K<w> := RationalFunctionField(Rationals());
-    f := (w^3 + 7*w^2 - 6*w + 3)/(w^5 - w + 4);
-    print PartialFractionDecomposition(f);
-    //f := (z^3 + 7*z^2 - 6*z + 3)/(z^5 - z + 4);
-
-    //print Factorisation(Denominator(f));
-    Q_ext := SplittingField(Denominator(f));
-    print "hier loop ik vaast";
-    K<x> := RationalFunctionField(Q_ext);
-    print "het einde";
-    new_f := K!f;
-    print PartialFractionDecomposition(new_f);
-    //time LaurentAnalysis(f,0,50);
+    //f := 4*cos^2 + z*sin + (2*z^3 + exp)/(z^4+3*z+1);
+    f := sin/(z^3+z+2);
+    n := [10,50,100,200,500,1000,2000,5000];
+    n := [10,20,50,100,200];
+    for i in n do
+        time LaurentAnalysis(g, 0, i);
+    end for;
 end procedure;
 //full laurent analysis on a degree 5 rational function has average time of: 52.840 s
