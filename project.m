@@ -1,12 +1,13 @@
 //global representations of symbols and fields:
 C := ComplexField(20);
-Q := Rationals(); //TODO finite fields?
-F<z,exp,cos,sin> := PolynomialRing(Q, 4); //TODO generate random polynomials of this form
+inf := C!1e20;
+Q := Rationals();
+F<z,exp,cos,sin,log1p> := PolynomialRing(Q, 5); //TODO generate random polynomials of this form
 
 //calculating truncated elementary trancendental functions
 function exp_approx(n)
     sum := 0;
-    for k in [0..n] do
+    for k in [0..n+3] do
         sum +:= z^k / Factorial(k);
     end for;
     return sum;
@@ -14,7 +15,7 @@ end function;
 
 function cos_approx(n)
     sum := 0;
-    for k in [0..n] do
+    for k in [0..n+3] do
         sum +:= (-1)^k * z^(2*k) / Factorial(2*k);
     end for;
     return sum;
@@ -22,8 +23,16 @@ end function;
 
 function sin_approx(n)
     sum := 0;
-    for k in [0..n] do
+    for k in [0..n+3] do
         sum +:= (-1)^k * z^(2*k+1) / Factorial(2*k+1);
+    end for;
+    return sum;
+end function;
+
+function log1p_approx(n)
+    sum := 0;
+    for k in [1..n+3] do
+        sum +:= ((-1)^(k+1)) * z^k / k;
     end for;
     return sum;
 end function;
@@ -118,6 +127,7 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
         R := PolynomialRing(Rationals());
         f_sub := R!f_sub;
         laurent_expansion := AssociativeArray(Integers());
+        //we have to truncate it properly
         for i in [0..Min(p,Degree(f_sub))] do
             coeff := Coefficient(f_sub, i);
             laurent_expansion[i] := coeff;
@@ -196,11 +206,13 @@ function TranscendentalTruncated(f,p)
     num_sub := Evaluate(num,exp,exp_approx(p));
     num_sub := Evaluate(num_sub,cos,cos_approx(p));
     num_sub := Evaluate(num_sub,sin,sin_approx(p));
+    num_sub := Evaluate(num_sub,log1p,log1p_approx(p));
     den_sub := Evaluate(den,exp,exp_approx(p));
     den_sub := Evaluate(den_sub,cos,cos_approx(p));
     den_sub := Evaluate(den_sub,sin,sin_approx(p));
+    den_sub := Evaluate(den_sub,log1p,log1p_approx(p));
 
-    //because of typing issues we build new polynomials
+    //because of typing issues we build a new numerator and denominator from scratch
     M := Monomials(den_sub);
     C := Coefficients(den_sub);
     p := K!0;
@@ -253,7 +265,7 @@ function DomainsAndSingularities(f,z0,p)
             Append(~bounds, s[1]);
         end if;
     end for;
-    Append(~bounds,C!1e20);
+    Append(~bounds,inf);
 
     DomainMap := AssociativeArray(Integers());
     for i in [0..#bounds-2] do
@@ -265,22 +277,24 @@ end function;
 
 //the main function of this project. prints all the relevent information about the laurent/taylorexpansion of a given function 
 LaurentAnalysis := procedure(f, z0, p);
-    //printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(f), z0;
+    printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(f), z0;
 
     //if our function contains trancendental components, we need to replace them with a sufficiently truncated series to approximate it
-    //f := Approximate(f);
     f := TranscendentalTruncated(f,p);
+    print(f);
     tup := DomainsAndSingularities(f,z0,p);
     domains := tup[1];
     singularities := tup[2];
 
-    //TODO tell user if singularity is removable or essential
-    //print("\nApproximate singularities: ");
-    punctured := false;
+    print("\nApproximate singularities: ");
+
+    den := Denominator(f);
+    num := Numerator(f);
     for s in singularities do
-        //printf "pole of order: %o at: %o\n", s[2], s[1];
-        if s[1] eq z0 then
-            punctured := true;
+        if Evaluate(den,s[1]) eq 0 and Evaluate(num,s[1]) eq 0 then
+            printf "removable singularity: %o at: %o\n", s[2], s[1];
+        else
+            printf "pole of order: %o at: %o\n", s[2], s[1];
         end if;
     end for;
 
@@ -292,18 +306,18 @@ LaurentAnalysis := procedure(f, z0, p);
         if #singularities gt 0 then
             type_series := "laurent";
         end if;
-        //printf "\nThe %o series around %o on domain %o is: \n",type_series, z0, domains[d];
-        //print(PrettyLaurentSeries(laurent_series,z0,p));
+        printf "\nThe %o series around %o on domain %o is: \n",type_series, z0, domains[d];
+        print(PrettyLaurentSeries(laurent_series,z0,p));
 
         non_zero := true;
         for exp in Keys(laurent_series) do
             if exp eq -1 then
                 non_zero := false;
-                //printf "\nThe residue is: %o\n", laurent_series[exp];
+                printf "\nThe residue is: %o\n", laurent_series[exp];
             end if;
         end for;
         if non_zero then
-            //printf "\nThe residue is: %o\n", 0;
+            printf "\nThe residue is: %o\n", 0;
         end if;
     end for;
 end procedure;
@@ -391,6 +405,7 @@ TestLaurentSeriesAroundPoint := procedure()
     //tests on elementary transcendental functions
     assert SeriesEqual(2*exp, 0, 0, 20);
     assert SeriesEqual(cos + 1/z, 0, 0, 20);
+    assert SeriesEqual(log1p, 0, 0, 20);
     assert SeriesEqual(sin/z, 0, 0, 20);
     assert SeriesEqual(cos,1,0,20);
     assert SeriesEqual(cos^2,1,0,20);
@@ -400,9 +415,11 @@ end procedure;
 TestLaurentAnalysis := procedure()
     //to test the laurent analysis manually
     //f := 3*cos + z^2/(z^3+1) + exp/z^2;
-    f := cos;
-    prec := 10;
-    z0 := 1;
+    f := sin/z;
+    prec := 5;
+    z0 := 0;
+    den := Denominator(f);
+    num := Numerator(f);
     LaurentAnalysis(f,z0,prec);
 end procedure;
 
@@ -413,7 +430,6 @@ TestLaurentPerformance :=  procedure()
     n := [10,50,100,200,500,1000,2000,5000];
     n := [10,20,50,100,200];
     for i in n do
-        time LaurentAnalysis(g, 0, i);
+        time LaurentAnalysis(f, 0, i);
     end for;
 end procedure;
-//full laurent analysis on a degree 5 rational function has average time of: 52.840 s
