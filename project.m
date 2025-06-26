@@ -63,7 +63,7 @@ function MyPartialFractionDecomposition(f)
     full_factorization := Factorisation(Denominator(new_f));
 
     //now we compute a partial fraction decomposition again over the extended field
-    full_decomposition := SimplePartialFractionDecomposition(new_f); 
+    full_decomposition := PartialFractionDecomposition(new_f); 
 
     return full_decomposition;
 end function;
