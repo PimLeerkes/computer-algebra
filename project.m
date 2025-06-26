@@ -38,12 +38,12 @@ function log1p_approx(n) //stands for log(1+z)
 end function;
 
 function MyPartialFractionDecomposition(f)
-    //Helper function to compute partial fraction decompositions of rational functions
+    //helper function to compute partial fraction decompositions of rational functions
 
-    //First we need to determine the factorization of the denominator in order to know which field extensions are needed
+    //first we need to determine the factorization of the denominator in order to know which field extensions are needed
     den_f := Factorisation(Denominator(f));
 
-    //We check the field extentions
+    //we check the field extentions
     extentions := [];
     for factor in den_f do
         if Degree(factor[1]) gt 1 then
@@ -60,8 +60,10 @@ function MyPartialFractionDecomposition(f)
     K<z> := RationalFunctionField(Q_ext);
     new_f := K!f;
 
+    full_factorization := Factorisation(Denominator(new_f));
+
     //now we compute a partial fraction decomposition again over the extended field
-    full_decomposition := PartialFractionDecomposition(new_f); 
+    full_decomposition := SimplePartialFractionDecomposition(new_f); 
 
     return full_decomposition;
 end function;
@@ -458,10 +460,13 @@ end procedure;
 TestLaurentPerformance :=  procedure() 
     //To test the performance
     //f := 4*cos^2 + z*sin + (2*z^3 + exp)/(z^4+3*z+1);
-    f := sin/(z^3+z+2);
+    f := 1/(z^5 - z + 1);
     n := [10,50,100,200,500,1000,2000,5000];
     n := [10,20,50,100,200];
+
+    den := Denominator(f);
+    num := Numerator(f);
     for i in n do
-        time LaurentAnalysis(f, 0, i);
+        time LaurentAnalysis(num,den, 0, i);
     end for;
 end procedure;
