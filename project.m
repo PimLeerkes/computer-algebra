@@ -5,34 +5,36 @@ Q := Rationals();
 F<z,exp,cos,sin,log1p> := PolynomialRing(Q, 5); //log1p stands for log(1+z)
 
 //calculating truncated elementary trancendental functions
-function exp_approx(n)
+//if the user wants to use nested functions, they have to directly use these and let n be equal
+//to the precision of the laurent/taylor series
+function exp_approx(f,n)
     sum := 0;
     for k in [0..n+3] do
-        sum +:= z^k / Factorial(k);
+        sum +:= f^k / Factorial(k);
     end for;
     return sum;
 end function;
 
-function cos_approx(n)
+function cos_approx(f,n)
     sum := 0;
     for k in [0..n+3] do
-        sum +:= (-1)^k * z^(2*k) / Factorial(2*k);
+        sum +:= (-1)^k * f^(2*k) / Factorial(2*k);
     end for;
     return sum;
 end function;
 
-function sin_approx(n)
+function sin_approx(f,n)
     sum := 0;
     for k in [0..n+3] do
-        sum +:= (-1)^k * z^(2*k+1) / Factorial(2*k+1);
+        sum +:= (-1)^k * f^(2*k+1) / Factorial(2*k+1);
     end for;
     return sum;
 end function;
 
-function log1p_approx(n) //stands for log(1+z)
+function log1p_approx(f,n) //stands for log(1+z)
     sum := 0;
     for k in [1..n+3] do
-        sum +:= ((-1)^(k+1)) * z^k / k;
+        sum +:= ((-1)^(k+1)) * f^k / k;
     end for;
     return sum;
 end function;
@@ -214,16 +216,16 @@ function TranscendentalTruncated(num,den,p)
     //function to substitute symbols for transcendental functions by the truncated series
 
     //we first make sthe substitutions in the numerator and denominator seperately
-    num_sub := Evaluate(num,exp,exp_approx(p));
-    num_sub := Evaluate(num_sub,cos,cos_approx(p));
-    num_sub := Evaluate(num_sub,sin,sin_approx(p));
-    num_sub := Evaluate(num_sub,log1p,log1p_approx(p));
-    den_sub := Evaluate(den,exp,exp_approx(p));
-    den_sub := Evaluate(den_sub,cos,cos_approx(p));
-    den_sub := Evaluate(den_sub,sin,sin_approx(p));
-    den_sub := Evaluate(den_sub,log1p,log1p_approx(p));
+    num_sub := Evaluate(num,exp,exp_approx(z,p));
+    num_sub := Evaluate(num_sub,cos,cos_approx(z,p));
+    num_sub := Evaluate(num_sub,sin,sin_approx(z,p));
+    num_sub := Evaluate(num_sub,log1p,log1p_approx(z,p));
+    den_sub := Evaluate(den,exp,exp_approx(z,p));
+    den_sub := Evaluate(den_sub,cos,cos_approx(z,p));
+    den_sub := Evaluate(den_sub,sin,sin_approx(z,p));
+    den_sub := Evaluate(den_sub,log1p,log1p_approx(z,p));
 
-    //because of typing issues we build a new numerator and denominator from scratch
+    //because of typing issues we build a new numerator and denominator from scratch that are properly univariate
     K := PolynomialRing(Q);
 
     //the numerator
@@ -449,8 +451,9 @@ TestLaurentAnalysis := procedure()
     //to test the laurent analysis manually
     //f := 3*cos + z^2/(z^3+1) + exp/z^2;
     //f := sin/z;
-    f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
+    //f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
     prec := 5;
+    f := exp_approx(sin,prec);
     z0 := 0;
     den := Denominator(f);
     num := Numerator(f);
