@@ -7,7 +7,7 @@ F<z,exp,cos,sin,log1p> := PolynomialRing(Q, 5); //log1p stands for log(1+z)
 //calculating truncated elementary trancendental functions
 //if the user wants to use nested functions, they have to directly use these and let n be equal
 //to the precision of the laurent/taylor series
-function exp_approx(f,n)
+function ExpApprox(f,n)
     sum := 0;
     for k in [0..n+3] do
         sum +:= f^k / Factorial(k);
@@ -15,7 +15,7 @@ function exp_approx(f,n)
     return sum;
 end function;
 
-function cos_approx(f,n)
+function CosApprox(f,n)
     sum := 0;
     for k in [0..n+3] do
         sum +:= (-1)^k * f^(2*k) / Factorial(2*k);
@@ -23,7 +23,7 @@ function cos_approx(f,n)
     return sum;
 end function;
 
-function sin_approx(f,n)
+function SinApprox(f,n)
     sum := 0;
     for k in [0..n+3] do
         sum +:= (-1)^k * f^(2*k+1) / Factorial(2*k+1);
@@ -31,7 +31,7 @@ function sin_approx(f,n)
     return sum;
 end function;
 
-function log1p_approx(f,n) //stands for log(1+z)
+function Log1pApprox(f,n) //stands for log(1+z)
     sum := 0;
     for k in [1..n+3] do
         sum +:= ((-1)^(k+1)) * f^k / k;
@@ -445,6 +445,11 @@ TestLaurentSeriesAroundPoint := procedure()
     assert SeriesEqual(cos,1,0,20);
     assert SeriesEqual(cos^2,1,0,20);
     assert SeriesEqual(cos*sin + exp*cos^2 + (z+cos)/(z^2+2),2,0,20);
+
+    //test on nested functions (not all combinations work)
+    prec := 20;
+    assert SeriesEqual(ExpApprox(z^2,p),1,0,prec);
+    assert SeriesEqual(CosApprox(sin,p),0,0,prec);
 end procedure;
 
 TestLaurentAnalysis := procedure()
@@ -453,7 +458,8 @@ TestLaurentAnalysis := procedure()
     //f := sin/z;
     //f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
     prec := 5;
-    f := exp_approx(sin,prec);
+    f := ExpApprox(sin,prec);
+    f := Log1pApprox(z^2,prec);
     z0 := 0;
     den := Denominator(f);
     num := Numerator(f);
