@@ -4,7 +4,7 @@ inf := C!1e20;
 Q := Rationals();
 F<z,exp,cos,sin,log1p> := PolynomialRing(Q, 5); //log1p stands for log(1+z)
 
-//calculating truncated elementary trancendental functions
+//calculating truncated elementary transcendental functions
 //if the user wants to use nested functions, they have to directly use these and let n be equal
 //to the precision of the Laurent/Taylor series
 function ExpApprox(f,n)
@@ -150,7 +150,7 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
     //to the Laurent expansion
     laurent_expansion := AssociativeArray(Integers());
     for component in decomposition do
-        //we must first convert the function to a series (using binomial theorem)
+        //we must first convert the function to a series (using generalized binomial theorem)
         bin := MyBinomialExpansion(component,z0, domain, p);
 
         //we add the new series to our current series
@@ -276,16 +276,17 @@ end function;
 
 
 LaurentAnalysis := procedure(num, den, z0, p);
-    //the main function of this project. prints all the relevent information about the laurent/taylorexpansion of a given function 
+    //the main function of this project. prints all the relevent information about the Laurent/Taylor expansion of a given function 
 
     //we print a welcome message first
+    printf "Performing laurent analysis with precision: ";
     if den eq 1 then
-        printf "Performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(num), z0;
+        printf "%o on function: %o around point: %o\n",p, Sprint(num), z0;
     else
-        printf "Performing laurent analysis with precision: %o on function: %o around point: %o\n",p, "(" * Sprint(num) * ")/(" * Sprint(den) * ")", z0;
+        printf "%o on function: %o around point: %o\n",p, "(" * Sprint(num) * ")/(" * Sprint(den) * ")", z0;
     end if;
 
-    //if our function contains trancendental components, we need to replace them with a sufficiently truncated series to approximate it
+    //if our function contains transcendental components, we need to replace them with a sufficiently truncated series to approximate it
     f := TranscendentalTruncated(num,den,p);
 
     //we need to obtain the singularities (to print them) and the domains (to determine the power series for)
@@ -296,12 +297,16 @@ LaurentAnalysis := procedure(num, den, z0, p);
     singularities := tup[2];
 
     //we print and store relevant information on the singularities
+    //the following two variables will be used later to determine what we print
     type_series := "Taylor";
     contains_transcendental := exists{i : i in [2..5] | Degree(num, i) ne 0};
     if #singularities gt 0 or contains_transcendental then
+        //later we explicitly let the user know if the series is a Taylor or Laurent series
         if #singularities gt 0 then
             type_series := "Laurent";
         end if;
+
+        //we print the singularities and their types
         print("\nSingularities: ");
         punctured := false;
         for s in singularities do
@@ -332,7 +337,11 @@ LaurentAnalysis := procedure(num, den, z0, p);
         else
             printf "The %o series around %o on domain:\n ", type_series, z0;
             if punctured or domains[d][1] ne z0 then
-                printf "%o < ", Abs(domains[d][1]);
+                if Abs(domains[d][2]) lt Abs(domains[d][1]) then
+                    printf "%o > ", Abs(domains[d][1]);
+                else
+                    printf "%o < ", Abs(domains[d][1]);
+                end if;
             end if;
             if z0 eq 0 then
                 printf "|z| ";
@@ -340,11 +349,17 @@ LaurentAnalysis := procedure(num, den, z0, p);
                 printf "|z - %o| ", z0;
             end if;
             if domains[d][2] ne inf then
-                printf "< %o", Abs(domains[d][2]);
+                if Abs(domains[d][2]) lt Abs(domains[d][1]) then
+                    printf "> %o", Abs(domains[d][2]);
+                else
+                    printf "< %o", Abs(domains[d][2]);
+                end if;
             end if;
             print("");
         end if;
         print("");
+
+        //we print the series itself
         print(PrettySeries(laurent_series,z0,p));
 
         //we print the residue
@@ -456,18 +471,20 @@ TestLaurentSeriesAroundPoint := procedure()
     assert SeriesEqual(cos^2,1,0,20);
     assert SeriesEqual(cos*sin + exp*cos^2 + (z+cos)/(z^2+2),2,0,20);
 
-    //test on nested functions (not all combinations work)
+    //test on nested functions (more elaborate ones quickly become slow)
     prec := 20;
-    assert SeriesEqual(ExpApprox(z^2,prec),1,0,prec);
-    assert SeriesEqual(CosApprox(sin,prec),0,0,prec);
+    assert SeriesEqual(ExpApprox(z^2, prec),1,0,prec);
+    assert SeriesEqual(CosApprox(sin + z^2, prec),0,0,prec);
 end procedure;
 
 TestLaurentAnalysis := procedure()
     //to test the laurent analysis manually
     prec := 5;
-    //f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
+    f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
+    //f := sin/z;
     //f := ExpApprox(sin,prec);
-    f := Log1pApprox(z^2,prec);
+    //f := Log1pApprox(z^2,prec);
+    //f := 4*cos^2 + z*sin + (2*z^3 + exp)/(z^4+3*z+1);
     z0 := 0;
     den := Denominator(f);
     num := Numerator(f);
