@@ -216,14 +216,14 @@ function TranscendentalTruncated(num,den,p)
     //function to substitute symbols for transcendental functions by the truncated series
 
     //we first make sthe substitutions in the numerator and denominator seperately
-    num_sub := Evaluate(num,exp,exp_approx(z,p));
-    num_sub := Evaluate(num_sub,cos,cos_approx(z,p));
-    num_sub := Evaluate(num_sub,sin,sin_approx(z,p));
-    num_sub := Evaluate(num_sub,log1p,log1p_approx(z,p));
-    den_sub := Evaluate(den,exp,exp_approx(z,p));
-    den_sub := Evaluate(den_sub,cos,cos_approx(z,p));
-    den_sub := Evaluate(den_sub,sin,sin_approx(z,p));
-    den_sub := Evaluate(den_sub,log1p,log1p_approx(z,p));
+    num_sub := Evaluate(num,exp,ExpApprox(z,p));
+    num_sub := Evaluate(num_sub,cos,CosApprox(z,p));
+    num_sub := Evaluate(num_sub,sin,SinApprox(z,p));
+    num_sub := Evaluate(num_sub,log1p,Log1pApprox(z,p));
+    den_sub := Evaluate(den,exp,ExpApprox(z,p));
+    den_sub := Evaluate(den_sub,cos,CosApprox(z,p));
+    den_sub := Evaluate(den_sub,sin,SinApprox(z,p));
+    den_sub := Evaluate(den_sub,log1p,Log1pApprox(z,p));
 
     //because of typing issues we build a new numerator and denominator from scratch that are properly univariate
     K := PolynomialRing(Q);
@@ -299,7 +299,11 @@ LaurentAnalysis := procedure(num, den, z0, p);
     //the main function of this project. prints all the relevent information about the laurent/taylorexpansion of a given function 
 
     //we print a welcome message first
-    printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, "(" * Sprint(num) * ")/(" * Sprint(den) * ")", z0;
+    if den eq 1 then
+        printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(num), z0;
+    else
+        printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, "(" * Sprint(num) * ")/(" * Sprint(den) * ")", z0;
+    end if;
 
     //if our function contains trancendental components, we need to replace them with a sufficiently truncated series to approximate it
     f := TranscendentalTruncated(num,den,p);
@@ -448,8 +452,8 @@ TestLaurentSeriesAroundPoint := procedure()
 
     //test on nested functions (not all combinations work)
     prec := 20;
-    assert SeriesEqual(ExpApprox(z^2,p),1,0,prec);
-    assert SeriesEqual(CosApprox(sin,p),0,0,prec);
+    assert SeriesEqual(ExpApprox(z^2,prec),1,0,prec);
+    assert SeriesEqual(CosApprox(sin,prec),0,0,prec);
 end procedure;
 
 TestLaurentAnalysis := procedure()
@@ -458,8 +462,9 @@ TestLaurentAnalysis := procedure()
     //f := sin/z;
     //f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
     prec := 5;
-    f := ExpApprox(sin,prec);
-    f := Log1pApprox(z^2,prec);
+    f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
+    //f := ExpApprox(sin,prec);
+    //f := Log1pApprox(z^2,prec);
     z0 := 0;
     den := Denominator(f);
     num := Numerator(f);
@@ -468,14 +473,24 @@ end procedure;
 
 TestLaurentPerformance :=  procedure() 
     //To test the performance
-    //f := 4*cos^2 + z*sin + (2*z^3 + exp)/(z^4+3*z+1);
-    f := 1/(z^5 - z + 1);
-    n := [10,50,100,200,500,1000,2000,5000];
-    n := [10,20,50,100,200];
 
+    //testing runtime in relation to precision when considering function with irreducible denominator
+    //f := 4*cos^2 + z*sin + (2*z^3 + exp)/(z^4+3*z+1);
+    f := 1/(z^4 + z + 1);
+    n := [10,50,100,200,500,1000,2000,5000];
+    //n := [10,20,50,100,200];
     den := Denominator(f);
     num := Numerator(f);
+    //for i in n do
+    //    time LaurentAnalysis(num,den, 0, i);
+    //end for;
+
+    //testing runtime in relation to degree of factorizable denominator
+    n := [10,50,100,200,500,1000,2000,5000];
     for i in n do
-        time LaurentAnalysis(num,den, 0, i);
+        f := 1/(z+1)^i;
+        den := Denominator(f);
+        num := Numerator(f);
+        time LaurentAnalysis(num,den, 0, 20);
     end for;
 end procedure;
