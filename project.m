@@ -300,9 +300,9 @@ LaurentAnalysis := procedure(num, den, z0, p);
 
     //we print a welcome message first
     if den eq 1 then
-        printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(num), z0;
+        printf "Performing laurent analysis with precision: %o on function: %o around point: %o\n",p, Sprint(num), z0;
     else
-        printf "performing laurent analysis with precision: %o on function: %o around point: %o\n",p, "(" * Sprint(num) * ")/(" * Sprint(den) * ")", z0;
+        printf "Performing laurent analysis with precision: %o on function: %o around point: %o\n",p, "(" * Sprint(num) * ")/(" * Sprint(den) * ")", z0;
     end if;
 
     //if our function contains trancendental components, we need to replace them with a sufficiently truncated series to approximate it
@@ -317,28 +317,48 @@ LaurentAnalysis := procedure(num, den, z0, p);
 
     //we print the relevant information on the singularities
     print("\nApproximate singularities: ");
+    punctured := false;
     for s in singularities do
+        if s[1] eq z0 then
+            punctured := true;
+        end if;
         if Evaluate(new_den,s[1]) eq 0 and Evaluate(new_num,s[1]) eq 0 then
-            printf "removable singularity at: %o\n", s[2], s[1];
+            printf "Removable singularity at: %o\n", s[1];
         else
-            printf "pole of order: %o at: %o\n", s[2], s[1];
+            printf "Pole of order: %o at: %o\n", s[2], s[1];
         end if;
     end for;
     contains_transcendental := exists{i : i in [2..5] | Degree(num, i) ne 0};
     if contains_transcendental then
-        print "essential singularity at: infinity\n";
+        print "Essential singularity at: infinity\n";
     end if;
+    print("");
 
     //now we determine the laurent/taylor series around z0 for each domain
     for d in Keys(domains) do
+        print("------------------------------------");
         laurent_series := LaurentSeriesAroundPoint(new_num/new_den,z0,domains[d],p);
 
         //we also make it explicit whether the series is a taylor or a laurent series
-        type_series := "taylor";
+        type_series := "Taylor";
         if #singularities gt 0 then
-            type_series := "laurent";
+            type_series := "Laurent";
         end if;
-        printf "\nThe %o series around %o on domain %o is: \n",type_series, z0, domains[d];
+
+        //we print on which domain the series is valid
+        printf "The %o series around %o on domain:\n ", type_series, z0;
+        if punctured or domains[d][1] ne z0 then
+            printf "%o < ", Abs(domains[d][1]);
+        end if;
+        if z0 eq 0 then
+            printf "|z| ";
+        else
+            printf "|z - %o| ", z0;
+        end if;
+        if domains[d][2] ne inf then
+            printf "< %o", Abs(domains[d][2]);
+        end if;
+        print("\n");
         print(PrettySeries(laurent_series,z0,p));
 
         //we print the residue
@@ -346,11 +366,11 @@ LaurentAnalysis := procedure(num, den, z0, p);
         for exp in Keys(laurent_series) do
             if exp eq -1 then
                 non_zero := false;
-                printf "\nThe residue is: %o\n", laurent_series[exp];
+                printf "\nResidue: %o\n", laurent_series[exp];
             end if;
         end for;
         if non_zero then
-            printf "\nThe residue is: %o\n", 0;
+            printf "\nResidue: %o\n", 0;
         end if;
     end for;
 end procedure;
@@ -458,9 +478,6 @@ end procedure;
 
 TestLaurentAnalysis := procedure()
     //to test the laurent analysis manually
-    //f := 3*cos + z^2/(z^3+1) + exp/z^2;
-    //f := sin/z;
-    //f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
     prec := 5;
     f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
     //f := ExpApprox(sin,prec);
@@ -481,9 +498,9 @@ TestLaurentPerformance :=  procedure()
     //n := [10,20,50,100,200];
     den := Denominator(f);
     num := Numerator(f);
-    //for i in n do
-    //    time LaurentAnalysis(num,den, 0, i);
-    //end for;
+    for i in n do
+        time LaurentAnalysis(num,den, 0, i);
+    end for;
 
     //testing runtime in relation to degree of factorizable denominator
     n := [10,50,100,200,500,1000,2000,5000];
