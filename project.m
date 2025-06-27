@@ -6,7 +6,7 @@ F<z,exp,cos,sin,log1p> := PolynomialRing(Q, 5); //log1p stands for log(1+z)
 
 //calculating truncated elementary trancendental functions
 //if the user wants to use nested functions, they have to directly use these and let n be equal
-//to the precision of the laurent/taylor series
+//to the precision of the Laurent/Taylor series
 function ExpApprox(f,n)
     sum := 0;
     for k in [0..n+3] do
@@ -122,13 +122,13 @@ function MyBinomialExpansion(f, z0, domain, p)
 end function;
 
 function LaurentSeriesAroundPoint(f, z0, domain, p)
-    //function that given a rational function, rational number, domain and precision, computes the laurent series around the point z0 on the domain truncated at the pth term
+    //function that given a rational function, rational number, domain and precision, computes the Laurent series around the point z0 on the domain truncated at the pth term
 
     //we must first substitute t := z - z0 => z := t + z0
     K<t> := Parent(f);
     f_sub := Evaluate(f, t + z0);
 
-    //if f is a polynomial, we are done immediately and we return the function itself, which is a taylor series
+    //if f is a polynomial, we are done immediately and we return the function itself, which is a Taylor series
     if Denominator(f) eq 1 then
         R := PolynomialRing(Rationals());
         f_sub := R!f_sub;
@@ -147,7 +147,7 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
     decomposition := MyPartialFractionDecomposition(f_sub);
 
     //for each part in the decomposition we determine the series and add them together
-    //to the laurent expansion
+    //to the Laurent expansion
     laurent_expansion := AssociativeArray(Integers());
     for component in decomposition do
         //we must first convert the function to a series (using binomial theorem)
@@ -173,12 +173,12 @@ function LaurentSeriesAroundPoint(f, z0, domain, p)
         end for;   
     end for;
 
-    //we return the laurent expansion, which can later be used to pretty print the series substituted with the (z-point)
+    //we return the Laurent expansion, which can later be used to pretty print the series substituted with the (z-point)
     return laurent_expansion;
 end function;
 
 function PrettySeries(series, z0, p)
-    //pretty printer for laurent/taylor series
+    //pretty printer for Laurent/Taylor series
     terms := [];
     for exp in Sort(SetToSequence(Keys(series))) do
         coeff := series[exp];
@@ -227,28 +227,8 @@ function TranscendentalTruncated(num,den,p)
 
     //because of typing issues we build a new numerator and denominator from scratch that are properly univariate
     K := PolynomialRing(Q);
-
-    //the numerator
-    M := Monomials(num_sub);
-    C := Coefficients(num_sub);
-    new_num := K!0;
-    for i in [1..#M] do
-        mon := M[i];
-        coeff := C[i];
-        exps := Exponents(mon);
-        new_num +:= K!coeff * (K.1)^exps[1];
-    end for;
-
-    //the denominator
-    M := Monomials(den_sub);
-    C := Coefficients(den_sub);
-    new_den := K!0;
-    for i in [1..#M] do
-        mon := M[i];
-        coeff := C[i];
-        exps := Exponents(mon);
-        new_den +:= K!coeff * (K.1)^exps[1];
-    end for;
+    new_num := &+[ K!C[i] * (K.1)^Exponents(M[i])[1] : i in [1..#M] ] where M := Monomials(num_sub) where C := Coefficients(num_sub);
+    new_den := &+[ K!C[i] * (K.1)^Exponents(M[i])[1] : i in [1..#M] ] where M := Monomials(den_sub) where C := Coefficients(den_sub);
 
     return <new_num,new_den>;
 end function;
@@ -315,50 +295,56 @@ LaurentAnalysis := procedure(num, den, z0, p);
     domains := tup[1];
     singularities := tup[2];
 
-    //we print the relevant information on the singularities
-    print("\nApproximate singularities: ");
-    punctured := false;
-    for s in singularities do
-        if s[1] eq z0 then
-            punctured := true;
-        end if;
-        if Evaluate(new_den,s[1]) eq 0 and Evaluate(new_num,s[1]) eq 0 then
-            printf "Removable singularity at: %o\n", s[1];
-        else
-            printf "Pole of order: %o at: %o\n", s[2], s[1];
-        end if;
-    end for;
+    //we print and store relevant information on the singularities
+    type_series := "Taylor";
     contains_transcendental := exists{i : i in [2..5] | Degree(num, i) ne 0};
-    if contains_transcendental then
-        print "Essential singularity at: infinity\n";
+    if #singularities gt 0 or contains_transcendental then
+        if #singularities gt 0 then
+            type_series := "Laurent";
+        end if;
+        print("\nSingularities: ");
+        punctured := false;
+        for s in singularities do
+            if s[1] eq z0 then
+                punctured := true;
+            end if;
+            if Evaluate(new_den,s[1]) eq 0 and Evaluate(new_num,s[1]) eq 0 then
+                printf "Removable singularity at: %o\n", s[1];
+            else
+                printf "Pole of order: %o at: %o\n", s[2], s[1];
+            end if;
+        end for;
+        if contains_transcendental then
+            print "Essential singularity at: infinity\n";
+        end if;
     end if;
     print("");
 
-    //now we determine the laurent/taylor series around z0 for each domain
+
+    //now we determine the Laurent/Taylor series around z0 for each domain
     for d in Keys(domains) do
         print("------------------------------------");
         laurent_series := LaurentSeriesAroundPoint(new_num/new_den,z0,domains[d],p);
 
-        //we also make it explicit whether the series is a taylor or a laurent series
-        type_series := "Taylor";
-        if #singularities gt 0 then
-            type_series := "Laurent";
-        end if;
-
         //we print on which domain the series is valid
-        printf "The %o series around %o on domain:\n ", type_series, z0;
-        if punctured or domains[d][1] ne z0 then
-            printf "%o < ", Abs(domains[d][1]);
-        end if;
-        if z0 eq 0 then
-            printf "|z| ";
+        if type_series eq "Taylor" then
+            printf "The %o series around %o:\n ", type_series, z0;
         else
-            printf "|z - %o| ", z0;
+            printf "The %o series around %o on domain:\n ", type_series, z0;
+            if punctured or domains[d][1] ne z0 then
+                printf "%o < ", Abs(domains[d][1]);
+            end if;
+            if z0 eq 0 then
+                printf "|z| ";
+            else
+                printf "|z - %o| ", z0;
+            end if;
+            if domains[d][2] ne inf then
+                printf "< %o", Abs(domains[d][2]);
+            end if;
+            print("");
         end if;
-        if domains[d][2] ne inf then
-            printf "< %o", Abs(domains[d][2]);
-        end if;
-        print("\n");
+        print("");
         print(PrettySeries(laurent_series,z0,p));
 
         //we print the residue
@@ -479,9 +465,9 @@ end procedure;
 TestLaurentAnalysis := procedure()
     //to test the laurent analysis manually
     prec := 5;
-    f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
+    //f := (2*z^2 + 3*z -1)/(z^3 - z^2 + 2);
     //f := ExpApprox(sin,prec);
-    //f := Log1pApprox(z^2,prec);
+    f := Log1pApprox(z^2,prec);
     z0 := 0;
     den := Denominator(f);
     num := Numerator(f);
